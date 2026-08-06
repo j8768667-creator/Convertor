@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PKBank Sampler & Soundkit Editor with WAV Export</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #1a1a24;
+      --card-bg: #242434;
+      --accent-color: #ff5500;
+      --accent-hover: #ff7733;
+      --text-color: #f0f0f5;
+      --muted-text: #8a8a9e;
+      --border-color: #36364c;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto 20px auto;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 15px;
+    }
+
+    h1 { margin: 0; font-size: 1.5rem; color: #fff; }
+
+    .header-actions { display: flex; gap: 10px; }
+
+    .drop-zone {
+      border: 2px dashed var(--accent-color);
+      border-radius: 8px;
+      padding: 30px;
+      text-align: center;
+      background-color: var(--card-bg);
+      cursor: pointer;
+      max-width: 1200px;
+      margin: 0 auto 20px auto;
+      transition: background 0.2s;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover { background-color: #2e2e42; }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+    }
+
+    .pads-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .pad-btn {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 15px;
+      color: var(--text-color);
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 90px;
+      transition: all 0.1s ease;
+    }
+
+    .pad-btn:hover { border-color: var(--accent-color); }
+    .pad-btn.active { border-color: #00e676; box-shadow: 0 0 10px rgba(0,230,118,0.3); }
+    .pad-btn.playing { background-color: #383852; transform: scale(0.98); }
+
+    .pad-index { font-size: 0.75rem; color: var(--muted-text); font-weight: bold; }
+    .pad-name { font-weight: bold; font-size: 0.95rem; margin-top: 5px; }
+    .pad-file { font-size: 0.7rem; color: var(--muted-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .editor-panel {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .editor-panel h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+
+    .control-group { margin-bottom: 15px; }
+    .control-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      margin-bottom: 5px;
+      color: var(--muted-text);
+    }
+    .control-group input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent-color);
+    }
+
+    .btn {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:hover { background-color: var(--accent-hover); }
+    .btn:disabled { background-color: var(--border-color); cursor: not-allowed; }
+    .btn-secondary { background-color: #3a3a52; }
+    .btn-secondary:hover { background-color: #4c4c6d; }
+
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Pulsark Kit Player & WAV Exporter</h1>
+    <div class="header-actions">
+      <button id="exportAllWavBtn" class="btn btn-secondary" disabled>Export All Pads (WAV Zip)</button>
+      <button id="exportPkbankBtn" class="btn" disabled>Export .pkbank</button>
+    </div>
+  </header>
+
+  <div class="drop-zone" id="dropZone">
+    <p style="margin:0; font-weight: bold;">Drop your <code>.pkbank</code> file here</p>
+    <p style="margin:5px 0 0 0; font-size:0.85rem; color: var(--muted-text);">or click to browse</p>
+    <input type="file" id="fileInput" accept=".pkbank,.zip">
+  </div>
+
+  <div class="container">
+    <div class="pads-grid" id="padsGrid"></div>
+
+    <div class="editor-panel">
+      <h2 id="editorTitle">Select a Pad</h2>
+      <div id="editorControls" style="display:none;">
+        <div class="control-group">
+          <label>Volume <span id="val-volume">100%</span></label>
+          <input type="range" id="param-volume" min="0" max="150" value="100">
+        </div>
+
+        <div class="control-group">
+          <label>Pitch / Speed (semitones) <span id="val-pitch">0</span></label>
+          <input type="range" id="param-pitch" min="-12" max="12" value="0" step="1">
+        </div>
+
+        <div class="control-group">
+          <label>Pan <span id="val-pan">Center</span></label>
+          <input type="range" id="param-pan" min="-1" max="1" value="0" step="0.05">
+        </div>
+
+        <div class="control-group">
+          <label>Filter Cutoff (Hz) <span id="val-cutoff">20000 Hz</span></label>
+          <input type="range" id="param-cutoff" min="100" max="20000" value="20000" step="100">
+        </div>
+
+        <div class="control-group">
+          <label>Trim Start <span id="val-trimStart">0%</span></label>
+          <input type="range" id="param-trimStart" min="0" max="1" value="0" step="0.01">
+        </div>
+
+        <div class="control-group">
+          <label>Trim End <span id="val-trimEnd">100%</span></label>
+          <input type="range" id="param-trimEnd" min="0" max="1" value="1" step="0.01">
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px;">
+          <button id="previewBtn" class="btn">Play Preview</button>
+          <button id="exportPadWavBtn" class="btn btn-secondary">Export Selected Pad as WAV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let zipInstance = null;
+    let manifestData = null;
+    let loadedAudioBuffers = {};
+    let selectedPadIndex = null;
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const padsGrid = document.getElementById('padsGrid');
+    const exportPkbankBtn = document.getElementById('exportPkbankBtn');
+    const exportAllWavBtn = document.getElementById('exportAllWavBtn');
+    const exportPadWavBtn = document.getElementById('exportPadWavBtn');
+
+    const editorControls = document.getElementById('editorControls');
+    const editorTitle = document.getElementById('editorTitle');
+    const previewBtn = document.getElementById('previewBtn');
+
+    const inputs = {
+      volume: document.getElementById('param-volume'),
+      pitch: document.getElementById('param-pitch'),
+      pan: document.getElementById('param-pan'),
+      cutoff: document.getElementById('param-cutoff'),
+      trimStart: document.getElementById('param-trimStart'),
+      trimEnd: document.getElementById('param-trimEnd')
+    };
+
+    const labels = {
+      volume: document.getElementById('val-volume'),
+      pitch: document.getElementById('val-pitch'),
+      pan: document.getElementById('val-pan'),
+      cutoff: document.getElementById('val-cutoff'),
+      trimStart: document.getElementById('val-trimStart'),
+      trimEnd: document.getElementById('val-trimEnd')
+    };
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    async function handleFile(file) {
+      dropZone.querySelector('p').innerText = `Loaded: ${file.name}`;
+      zipInstance = await JSZip.loadAsync(file);
+
+      const manifestFile = zipInstance.file('manifest.json');
+      if (manifestFile) {
+        const text = await manifestFile.async('string');
+        manifestData = JSON.parse(text);
+      } else {
+        manifestData = { pads: [] };
+      }
+
+      loadedAudioBuffers = {};
+      const audioFiles = Object.keys(zipInstance.files).filter(name => name.endsWith('.wav'));
+
+      for (const filePath of audioFiles) {
+        const fileData = await zipInstance.file(filePath).async('arraybuffer');
+        loadedAudioBuffers[filePath] = await audioCtx.decodeAudioData(fileData);
+      }
+
+      renderPads();
+      exportPkbankBtn.disabled = false;
+      exportAllWavBtn.disabled = false;
+    }
+
+    function renderPads() {
+      padsGrid.innerHTML = '';
+      const pads = manifestData.pads || [];
+
+      for (let i = 0; i < 16; i++) {
+        const padData = pads.find(p => p.index === i) || { index: i, name: `Pad ${i+1}`, audioFile: `audio/${String(i).padStart(2,'0')}_bd-808.wav` };
+        
+        const btn = document.createElement('div');
+        btn.className = `pad-btn ${selectedPadIndex === i ? 'active' : ''}`;
+        btn.dataset.index = i;
+        btn.innerHTML = `
+          <div class="pad-index">PAD ${i + 1}</div>
+          <div class="pad-name">${padData.name || 'Sample'}</div>
+          <div class="pad-file">${padData.audioFile || 'Empty'}</div>
+        `;
+
+        btn.addEventListener('click', () => {
+          selectPad(i);
+          triggerPadAudio(i);
+        });
+
+        padsGrid.appendChild(btn);
+      }
+    }
+
+    function selectPad(index) {
+      selectedPadIndex = index;
+      document.querySelectorAll('.pad-btn').forEach((b, i) => {
+        b.classList.toggle('active', i === index);
+      });
+
+      let padData = manifestData.pads.find(p => p.index === index);
+      if (!padData) {
+        padData = { index, name: `Pad ${index+1}`, volume: 100, pitch: 0, pan: 0, cutoff: 20000, trimStart: 0, trimEnd: 1 };
+        manifestData.pads.push(padData);
+      }
+
+      editorTitle.innerText = `Edit: ${padData.name}`;
+      editorControls.style.display = 'block';
+
+      inputs.volume.value = padData.volume ?? 100;
+      inputs.pitch.value = padData.pitch ?? 0;
+      inputs.pan.value = padData.pan ?? 0;
+      inputs.cutoff.value = padData.cutoff ?? 20000;
+      inputs.trimStart.value = padData.trimStart ?? 0;
+      inputs.trimEnd.value = padData.trimEnd ?? 1;
+
+      updateLabels();
+    }
+
+    function updateLabels() {
+      labels.volume.innerText = inputs.volume.value + '%';
+      labels.pitch.innerText = (inputs.pitch.value > 0 ? '+' : '') + inputs.pitch.value + ' semitones';
+      labels.pan.innerText = inputs.pan.value == 0 ? 'Center' : (inputs.pan.value < 0 ? `L ${Math.abs(inputs.pan.value)}` : `R ${inputs.pan.value}`);
+      labels.cutoff.innerText = inputs.cutoff.value + ' Hz';
+      labels.trimStart.innerText = Math.round(inputs.trimStart.value * 100) + '%';
+      labels.trimEnd.innerText = Math.round(inputs.trimEnd.value * 100) + '%';
+
+      if (selectedPadIndex !== null) {
+        const padData = manifestData.pads.find(p => p.index === selectedPadIndex);
+        if (padData) {
+          padData.volume = parseFloat(inputs.volume.value);
+          padData.pitch = parseFloat(inputs.pitch.value);
+          padData.pan = parseFloat(inputs.pan.value);
+          padData.cutoff = parseFloat(inputs.cutoff.value);
+          padData.trimStart = parseFloat(inputs.trimStart.value);
+          padData.trimEnd = parseFloat(inputs.trimEnd.value);
+        }
+      }
+    }
+
+    Object.values(inputs).forEach(input => input.addEventListener('input', updateLabels));
+    previewBtn.addEventListener('click', () => {
+      if (selectedPadIndex !== null) triggerPadAudio(selectedPadIndex);
+    });
+
+    function triggerPadAudio(index) {
+      const padData = manifestData.pads.find(p => p.index === index);
+      if (!padData || !padData.audioFile) return;
+
+      const buffer = loadedAudioBuffers[padData.audioFile];
+      if (!buffer) return;
+
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+
+      const semitones = padData.pitch || 0;
+      source.playbackRate.value = Math.pow(2, semitones / 12);
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = padData.cutoff || 20000;
+
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = (padData.volume ?? 100) / 100;
+
+      const panner = audioCtx.createStereoPanner();
+      panner.pan.value = padData.pan || 0;
+
+      source.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(panner);
+      panner.connect(audioCtx.destination);
+
+      const duration = buffer.duration;
+      const startTime = (padData.trimStart || 0) * duration;
+      const playDuration = Math.max(0.01, ((padData.trimEnd || 1) - (padData.trimStart || 0)) * duration);
+
+      source.start(0, startTime, playDuration);
+
+      const padEl = padsGrid.children[index];
+      if (padEl) {
+        padEl.classList.add('playing');
+        setTimeout(() => padEl.classList.remove('playing'), 150);
+      }
+    }
+
+    // OfflineAudioContext Renderer (bakes filter, pitch, trim, volume & pan into audio buffer)
+    async function renderPadAudioBuffer(padData) {
+      const originalBuffer = loadedAudioBuffers[padData.audioFile];
+      if (!originalBuffer) return null;
+
+      const duration = originalBuffer.duration;
+      const startTime = (padData.trimStart || 0) * duration;
+      const playDuration = Math.max(0.01, ((padData.trimEnd || 1) - (padData.trimStart || 0)) * duration);
+
+      const semitones = padData.pitch || 0;
+      const playbackRate = Math.pow(2, semitones / 12);
+      const outputDuration = playDuration / playbackRate;
+
+      const sampleRate = originalBuffer.sampleRate;
+      const offlineCtx = new OfflineAudioContext(2, Math.ceil(sampleRate * outputDuration), sampleRate);
+
+      const source = offlineCtx.createBufferSource();
+      source.buffer = originalBuffer;
+      source.playbackRate.value = playbackRate;
+
+      const filter = offlineCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = padData.cutoff || 20000;
+
+      const gainNode = offlineCtx.createGain();
+      gainNode.gain.value = (padData.volume ?? 100) / 100;
+
+      const panner = offlineCtx.createStereoPanner();
+      panner.pan.value = padData.pan || 0;
+
+      source.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(panner);
+      panner.connect(offlineCtx.destination);
+
+      source.start(0, startTime, playDuration);
+
+      return await offlineCtx.startRendering();
+    }
+
+    // Standard 16-bit Stereo PCM WAV Blob Encoder
+    function audioBufferToWavBlob(buffer) {
+      const numChannels = buffer.numberOfChannels;
+      const sampleRate = buffer.sampleRate;
+      const bitDepth = 16;
+      
+      let samples;
+      if (numChannels === 2) {
+        const left = buffer.getChannelData(0);
+        const right = buffer.getChannelData(1);
+        samples = new Float32Array(left.length + right.length);
+        for (let i = 0, j = 0; i < left.length; i++, j += 2) {
+          samples[j] = left[i];
+          samples[j + 1] = right[i];
+        }
+      } else {
+        samples = buffer.getChannelData(0);
+      }
+
+      const bytesPerSample = bitDepth / 8;
+      const blockAlign = numChannels * bytesPerSample;
+      const bufferLength = 44 + samples.length * bytesPerSample;
+      const arrayBuffer = new ArrayBuffer(bufferLength);
+      const view = new DataView(arrayBuffer);
+
+      const writeString = (offset, str) => {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + samples.length * bytesPerSample, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); // PCM format
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * blockAlign, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitDepth, true);
+      writeString(36, 'data');
+      view.setUint32(40, samples.length * bytesPerSample, true);
+
+      let offset = 44;
+      for (let i = 0; i < samples.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+
+      return new Blob([arrayBuffer], { type: 'audio/wav' });
+    }
+
+    function triggerDownload(blob, filename) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    }
+
+    // Export Single Selected Pad to WAV
+    exportPadWavBtn.addEventListener('click', async () => {
+      if (selectedPadIndex === null) return;
+      const padData = manifestData.pads.find(p => p.index === selectedPadIndex);
+      if (!padData) return;
+
+      const renderedBuffer = await renderPadAudioBuffer(padData);
+      if (renderedBuffer) {
+        const wavBlob = audioBufferToWavBlob(renderedBuffer);
+        const fileName = `${padData.name ? padData.name.toLowerCase().replace(/\s+/g, '_') : 'pad_' + selectedPadIndex}.wav`;
+        triggerDownload(wavBlob, fileName);
+      }
+    });
+
+    // Export All Pads as a ZIP of WAVs
+    exportAllWavBtn.addEventListener('click', async () => {
+      if (!manifestData || !manifestData.pads) return;
+
+      const outZip = new JSZip();
+      const folder = outZip.folder('rendered_wavs');
+
+      for (const padData of manifestData.pads) {
+        if (padData.audioFile && loadedAudioBuffers[padData.audioFile]) {
+          const buffer = await renderPadAudioBuffer(padData);
+          if (buffer) {
+            const wavBlob = audioBufferToWavBlob(buffer);
+            const fileName = `${String(padData.index).padStart(2, '0')}_${(padData.name || 'pad').toLowerCase().replace(/\s+/g, '_')}.wav`;
+            folder.file(fileName, wavBlob);
+          }
+        }
+      }
+
+      const zipBlob = await outZip.generateAsync({ type: 'blob' });
+      triggerDownload(zipBlob, 'kit_wav_export.zip');
+    });
+
+    // Export .pkbank File
+    exportPkbankBtn.addEventListener('click', async () => {
+      if (!zipInstance || !manifestData) return;
+      zipInstance.file('manifest.json', JSON.stringify(manifestData, null, 2));
+      const updatedBlob = await zipInstance.generateAsync({ type: 'blob' });
+      triggerDownload(updatedBlob, manifestData.name ? `${manifestData.name.toLowerCase().replace(/\s+/g, '-')}.pkbank` : 'my-kit.pkbank');
+    });
+  </script>
+</body>
+</html>
