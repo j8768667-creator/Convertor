@@ -312,9 +312,12 @@
       overflow: hidden;
       text-overflow: ellipsis;
       margin-right: 8px;
+      min-width: 0;
     }
 
+    .sample-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
     .sample-item button { padding: 3px 6px; font-size: 0.7rem; flex-shrink: 0; }
+    .btn-icon { padding: 3px 7px; line-height: 1; }
 
     .pads-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-top: 8px; }
     .pad-btn {
@@ -463,6 +466,7 @@
         <div class="audio-playback-actions">
           <button id="auditionBtn" class="btn btn-green" aria-label="Play sample"><span aria-hidden="true">▶</span> Play Sample</button>
           <button id="stopSampleBtn" class="btn btn-red" aria-label="Stop sample"><span aria-hidden="true">■</span> Stop Sample</button>
+          <button id="clearPadBtn" class="btn btn-secondary" aria-label="Clear this pad">Clear Pad</button>
         </div>
       </div>
 
@@ -584,6 +588,136 @@
       setTimeout(() => el.remove(), durationMs);
     }
 
+    // --- Persistence (IndexedDB) ---
+    // Installed as a standalone app (iPad "Add to Home Screen"), this page
+    // has no server: everything used to live only in JS memory, so closing
+    // the app discarded it. IndexedDB stores each imported sample's raw
+    // file bytes (re-decoded on load) plus pad assignments, per-pad
+    // settings, the sequence pattern, and BPM, and restores them on launch.
+    const DB_NAME = 'sample-sequencer-db';
+    const DB_VERSION = 1;
+    let dbPromise = null;
+
+    function openDb() {
+      if (dbPromise) return dbPromise;
+      dbPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('samples')) db.createObjectStore('samples', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('appState')) db.createObjectStore('appState', { keyPath: 'key' });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      return dbPromise;
+    }
+
+    async function dbPut(storeName, value) {
+      try {
+        const db = await openDb();
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(storeName, 'readwrite');
+          tx.objectStore(storeName).put(value);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } catch (err) {
+        console.warn('Persistence write failed:', err);
+      }
+    }
+
+    async function dbGetAll(storeName) {
+      try {
+        const db = await openDb();
+        return await new Promise((resolve, reject) => {
+          const req = db.transaction(storeName, 'readonly').objectStore(storeName).getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        });
+      } catch (err) {
+        console.warn('Persistence read failed:', err);
+        return [];
+      }
+    }
+
+    async function dbGet(storeName, key) {
+      try {
+        const db = await openDb();
+        return await new Promise((resolve, reject) => {
+          const req = db.transaction(storeName, 'readonly').objectStore(storeName).get(key);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      } catch (err) {
+        console.warn('Persistence read failed:', err);
+        return undefined;
+      }
+    }
+
+    async function dbDelete(storeName, key) {
+      try {
+        const db = await openDb();
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(storeName, 'readwrite');
+          tx.objectStore(storeName).delete(key);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } catch (err) {
+        console.warn('Persistence delete failed:', err);
+      }
+    }
+
+    let saveStateTimer = null;
+    function saveStateNow() {
+      dbPut('appState', {
+        key: 'main',
+        bpm: parseFloat(bpmInput.value) || 120,
+        sequenceMatrix,
+        pads: padsState.map(p => ({
+          index: p.index,
+          name: p.name,
+          sampleId: p.sampleId || null,
+          volume: p.volume,
+          pitch: p.pitch,
+          pan: p.pan,
+          cutoff: p.cutoff,
+          trimStart: p.trimStart,
+          trimEnd: p.trimEnd,
+          cutPoint: p.cutPoint
+        }))
+      });
+    }
+    function saveAppState() {
+      clearTimeout(saveStateTimer);
+      saveStateTimer = setTimeout(saveStateNow, 400);
+    }
+    function saveAppStateImmediate() {
+      clearTimeout(saveStateTimer);
+      saveStateNow();
+    }
+    // beforeunload isn't reliable on iOS standalone apps (the OS can
+    // suspend/kill them without firing it), so flush on the events that
+    // actually do fire reliably there.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') saveAppStateImmediate();
+    });
+    window.addEventListener('pagehide', saveAppStateImmediate);
+
+    async function persistSampleFile(id, name, folder, kind, fileBytes) {
+      dbPut('samples', { id, name, folder, kind, fileBytes });
+    }
+    async function persistDerivedSample(sample, folder) {
+      try {
+        const wavBlob = audioBufferToWavBlob(sample.buffer);
+        const fileBytes = await wavBlob.arrayBuffer();
+        await persistSampleFile(sample.id, sample.name, folder, 'user', fileBytes);
+      } catch (err) {
+        console.warn('Could not persist derived sample', sample.name, err);
+      }
+    }
+
     let factoryLibrary = [];
     let userLibrary = [];
     let activeVoices = [];
@@ -592,6 +726,7 @@
       index: i,
       name: `Pad ${i + 1}`,
       audioBuffer: null,
+      sampleId: null,
       volume: 100,
       pitch: 0,
       pan: 0,
@@ -633,6 +768,7 @@
     const currentSoundTitle = document.getElementById('currentSoundTitle');
     const auditionBtn = document.getElementById('auditionBtn');
     const stopSampleBtn = document.getElementById('stopSampleBtn');
+    const clearPadBtn = document.getElementById('clearPadBtn');
 
     const inputs = {
       volume: document.getElementById('param-volume'),
@@ -764,11 +900,13 @@
           };
 
           factoryLibrary.push(newSample);
+          persistSampleFile(newSample.id, sampleName, folderName, 'factory', fileData);
 
           const index = padMeta && padMeta.index !== undefined ? padMeta.index : i;
           if (index >= 0 && index < NUM_PADS) {
             padsState[index].name = sampleName;
             padsState[index].audioBuffer = buffer;
+            padsState[index].sampleId = newSample.id;
             if (padMeta) {
               padsState[index].volume = padMeta.volume ?? 100;
               padsState[index].pitch = padMeta.pitch ?? 0;
@@ -785,6 +923,7 @@
         renderPads();
         renderSequencerGrid();
         selectPad(0);
+        saveAppState();
       } catch (err) {
         console.error("Failed to extract ZIP archive:", err);
         showToast("Failed to extract ZIP file. Ensure it is a valid zip archive.");
@@ -809,6 +948,7 @@
           const newSample = { id: `usr_${Date.now()}_${Math.random()}`, name, folder: 'User Uploads', buffer };
           
           userLibrary.push(newSample);
+          persistSampleFile(newSample.id, name, 'User Uploads', 'user', arrayBuffer);
           assignSampleToPad(newSample, selectedPadIndex);
         } catch (err) {
           console.error("Could not decode audio from file:", file.name, err);
@@ -881,11 +1021,11 @@
       factoryCount.innerText = `${factoryLibrary.length} samples`;
       userCount.innerText = `${userLibrary.length} samples`;
 
-      renderFolderList(factoryLibrary, factorySampleList);
-      renderFolderList(userLibrary, userSampleList);
+      renderFolderList(factoryLibrary, factorySampleList, 'factory');
+      renderFolderList(userLibrary, userSampleList, 'user');
     }
 
-    function renderFolderList(libraryList, targetContainer) {
+    function renderFolderList(libraryList, targetContainer, kind) {
       targetContainer.innerHTML = '';
 
       if (libraryList.length === 0) {
@@ -923,11 +1063,18 @@
           const item = document.createElement('div');
           item.className = 'sample-item';
           const safeName = escapeHtml(sample.name);
-          item.innerHTML = `<span title="${safeName}">${safeName}</span><button class="btn btn-secondary">Load to Pad</button>`;
-          item.querySelector('button').addEventListener('click', async () => {
+          item.innerHTML = `
+            <span title="${safeName}">${safeName}</span>
+            <div class="sample-item-actions">
+              <button class="btn btn-secondary" type="button">Load to Pad</button>
+              <button class="btn btn-red btn-icon" type="button" aria-label="Delete ${safeName}" title="Delete sample">🗑</button>
+            </div>
+          `;
+          item.querySelector('.btn-secondary').addEventListener('click', async () => {
             await ensureAudioContextRunning();
             assignSampleToPad(sample, selectedPadIndex);
           });
+          item.querySelector('.btn-red').addEventListener('click', () => deleteSample(sample, kind));
           contentsEl.appendChild(item);
         });
 
@@ -940,9 +1087,72 @@
     function assignSampleToPad(sample, padIdx) {
       padsState[padIdx].name = sample.name;
       padsState[padIdx].audioBuffer = sample.buffer;
+      padsState[padIdx].sampleId = sample.id || null;
       renderPads();
       renderSequencerGrid();
       selectPad(padIdx);
+      saveAppState();
+    }
+
+    // Unassigns a pad's sample without removing the sample from the library
+    // (the same sample may still be wanted on another pad).
+    function clearPad(padIdx) {
+      padsState[padIdx] = {
+        index: padIdx,
+        name: `Pad ${padIdx + 1}`,
+        audioBuffer: null,
+        sampleId: null,
+        volume: 100,
+        pitch: 0,
+        pan: 0,
+        cutoff: 20000,
+        trimStart: 0,
+        trimEnd: 1,
+        cutPoint: 0.5
+      };
+      renderPads();
+      renderSequencerGrid();
+      selectPad(padIdx);
+      saveAppState();
+    }
+
+    // Removes a sample from its library, from IndexedDB, and clears it off
+    // any pad currently using it.
+    function deleteSample(sample, kind) {
+      if (!confirm(`Delete "${sample.name}"? This can't be undone.`)) return;
+
+      if (kind === 'factory') {
+        factoryLibrary = factoryLibrary.filter(s => s.id !== sample.id);
+      } else {
+        userLibrary = userLibrary.filter(s => s.id !== sample.id);
+      }
+      dbDelete('samples', sample.id);
+
+      padsState.forEach((pad, i) => {
+        if (pad.sampleId === sample.id) {
+          padsState[i] = {
+            index: i,
+            name: `Pad ${i + 1}`,
+            audioBuffer: null,
+            sampleId: null,
+            volume: 100,
+            pitch: 0,
+            pan: 0,
+            cutoff: 20000,
+            trimStart: 0,
+            trimEnd: 1,
+            cutPoint: 0.5
+          };
+        }
+      });
+
+      refreshSoundBankDropdown();
+      renderLibraries();
+      renderPads();
+      renderSequencerGrid();
+      selectPad(selectedPadIndex);
+      saveAppState();
+      showToast(`Deleted "${sample.name}".`, 'success', 3000);
     }
 
     function renderPads() {
@@ -988,6 +1198,7 @@
             sequenceMatrix[padIdx][stepIdx] = !sequenceMatrix[padIdx][stepIdx];
             stepCell.classList.toggle('active', sequenceMatrix[padIdx][stepIdx]);
             stepCell.setAttribute('aria-pressed', sequenceMatrix[padIdx][stepIdx] ? 'true' : 'false');
+            saveAppState();
           });
           seqGrid.appendChild(stepCell);
         }
@@ -1037,9 +1248,11 @@
       pad.cutPoint = parseFloat(inputs.cutPoint.value);
 
       drawWaveform();
+      saveAppState();
     }
 
     Object.values(inputs).forEach(input => input.addEventListener('input', updateLabels));
+    bpmInput.addEventListener('change', saveAppState);
 
     function drawWaveform() {
       const pad = padsState[selectedPadIndex];
@@ -1122,12 +1335,17 @@
       const name1 = `${pad.name}_pt1`;
       const name2 = `${pad.name}_pt2`;
 
-      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, folder: 'Splits', buffer: part1Buffer });
-      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, folder: 'Splits', buffer: part2Buffer });
+      const sample1 = { id: `usr_${Date.now()}_1`, name: name1, folder: 'Splits', buffer: part1Buffer };
+      const sample2 = { id: `usr_${Date.now()}_2`, name: name2, folder: 'Splits', buffer: part2Buffer };
+      userLibrary.push(sample1, sample2);
+      persistDerivedSample(sample1, 'Splits');
+      persistDerivedSample(sample2, 'Splits');
 
-      assignSampleToPad({ name: name1, buffer: part1Buffer }, selectedPadIndex);
+      // Previously these were assigned via id-less object literals, so the
+      // pad never linked back to the library entry that was just created.
+      assignSampleToPad(sample1, selectedPadIndex);
       if (selectedPadIndex + 1 < NUM_PADS) {
-        assignSampleToPad({ name: name2, buffer: part2Buffer }, selectedPadIndex + 1);
+        assignSampleToPad(sample2, selectedPadIndex + 1);
       }
 
       refreshSoundBankDropdown();
@@ -1153,6 +1371,7 @@
         const newSample = { id: `usr_slice_${Date.now()}_${i}`, name: sliceName, folder: 'Slices', buffer: slicedBuf };
         
         userLibrary.push(newSample);
+        persistDerivedSample(newSample, 'Slices');
 
         const targetPad = selectedPadIndex + i;
         if (targetPad < NUM_PADS) {
@@ -1183,6 +1402,12 @@
     });
 
     stopSampleBtn.addEventListener('click', stopAllVoices);
+
+    clearPadBtn.addEventListener('click', () => {
+      const pad = padsState[selectedPadIndex];
+      if (!pad || !pad.audioBuffer) return; // already empty, nothing to do
+      clearPad(selectedPadIndex);
+    });
 
     function triggerPadAudio(index, targetCtx = audioCtx, targetTime = 0, outputNode = null) {
       const pad = padsState[index];
@@ -1395,12 +1620,74 @@
       }
     });
 
-    renderPads();
-    renderSequencerGrid();
-    renderLibraries();
-    refreshSoundBankDropdown();
-    selectPad(0);
-    window.addEventListener('resize', drawWaveform);
+    // Rebuilds factoryLibrary/userLibrary/padsState/sequenceMatrix/BPM from
+    // IndexedDB. Samples are stored as their original encoded bytes and
+    // re-decoded here, since AudioBuffers themselves can't be persisted.
+    async function hydrateFromDb() {
+      const [sampleRecords, savedState] = await Promise.all([
+        dbGetAll('samples'),
+        dbGet('appState', 'main')
+      ]);
+
+      const sampleById = new Map();
+      for (const rec of sampleRecords) {
+        try {
+          const decoded = await audioCtx.decodeAudioData(rec.fileBytes.slice(0));
+          const sample = { id: rec.id, name: rec.name, folder: rec.folder, buffer: decoded };
+          sampleById.set(rec.id, sample);
+          if (rec.kind === 'factory') factoryLibrary.push(sample);
+          else userLibrary.push(sample);
+        } catch (err) {
+          console.warn('Could not restore sample', rec.name, err);
+        }
+      }
+
+      if (!savedState) return;
+
+      if (typeof savedState.bpm === 'number') bpmInput.value = savedState.bpm;
+
+      if (Array.isArray(savedState.sequenceMatrix) && savedState.sequenceMatrix.length === NUM_PADS) {
+        sequenceMatrix = savedState.sequenceMatrix.map(row =>
+          Array.isArray(row) ? row.slice(0, TOTAL_STEPS) : Array(TOTAL_STEPS).fill(false)
+        );
+      }
+
+      if (Array.isArray(savedState.pads)) {
+        savedState.pads.forEach(saved => {
+          const i = saved.index;
+          if (i == null || i < 0 || i >= NUM_PADS) return;
+          const sample = saved.sampleId ? sampleById.get(saved.sampleId) : null;
+          padsState[i] = {
+            index: i,
+            name: saved.name ?? padsState[i].name,
+            audioBuffer: sample ? sample.buffer : null,
+            sampleId: sample ? sample.id : null,
+            volume: saved.volume ?? 100,
+            pitch: saved.pitch ?? 0,
+            pan: saved.pan ?? 0,
+            cutoff: saved.cutoff ?? 20000,
+            trimStart: saved.trimStart ?? 0,
+            trimEnd: saved.trimEnd ?? 1,
+            cutPoint: saved.cutPoint ?? 0.5
+          };
+        });
+      }
+    }
+
+    (async function initApp() {
+      try {
+        await hydrateFromDb();
+      } catch (err) {
+        console.warn('Could not restore saved samples/state:', err);
+        showToast('Could not restore your last session.');
+      }
+      refreshSoundBankDropdown();
+      renderLibraries();
+      renderPads();
+      renderSequencerGrid();
+      selectPad(0);
+      window.addEventListener('resize', drawWaveform);
+    })();
   </script>
 </body>
 </html>
