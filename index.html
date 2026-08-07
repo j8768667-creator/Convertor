@@ -13,6 +13,8 @@
       --accent-hover: #00c853;
       --btn-blue: #1d4ed8;
       --btn-blue-hover: #2563eb;
+      --btn-red: #dc2626;
+      --btn-red-hover: #b91c1c;
       --text-color: #f3f4f6;
       --muted-text: #9ca3af;
       --border-color: #374151;
@@ -115,6 +117,11 @@
       font-size: 1.1rem;
       font-weight: bold;
       color: #fff;
+    }
+
+    .audio-playback-actions {
+      display: flex;
+      gap: 8px;
     }
 
     /* WAV Waveform Editor Canvas & Trim Controls */
@@ -297,6 +304,8 @@
     .btn:hover { background-color: var(--btn-blue-hover); }
     .btn-green { background-color: var(--accent-color); color: #000; }
     .btn-green:hover { background-color: var(--accent-hover); }
+    .btn-red { background-color: var(--btn-red); color: white; }
+    .btn-red:hover { background-color: var(--btn-red-hover); }
     .btn-secondary { background-color: #374151; }
     .btn-secondary:hover { background-color: #4b5563; }
 
@@ -350,9 +359,14 @@
           <span style="font-size:0.7rem; color:var(--muted-text); font-weight:bold;">PAD <span id="currentPadNum">01</span></span>
           <div class="sound-title" id="currentSoundTitle">BD 808</div>
         </div>
-        <button id="auditionBtn" class="btn btn-green" style="display:flex; align-items:center; gap:6px;">
-          ▶ Play Sample
-        </button>
+        <div class="audio-playback-actions">
+          <button id="auditionBtn" class="btn btn-green" style="display:flex; align-items:center; gap:6px;">
+            ▶ Play Sample
+          </button>
+          <button id="stopSampleBtn" class="btn btn-red" style="display:flex; align-items:center; gap:6px;">
+            ■ Stop Sample
+          </button>
+        </div>
       </div>
 
       <div class="waveform-card">
@@ -495,6 +509,7 @@
     const currentPadNum = document.getElementById('currentPadNum');
     const currentSoundTitle = document.getElementById('currentSoundTitle');
     const auditionBtn = document.getElementById('auditionBtn');
+    const stopSampleBtn = document.getElementById('stopSampleBtn');
 
     const inputs = {
       volume: document.getElementById('param-volume'),
@@ -917,7 +932,12 @@
 
     auditionBtn.addEventListener('click', async () => {
       await ensureAudioContextRunning();
+      stopAllVoices(); // Stop any currently playing audio before starting new preview
       triggerPadAudio(selectedPadIndex);
+    });
+
+    stopSampleBtn.addEventListener('click', () => {
+      stopAllVoices();
     });
 
     function triggerPadAudio(index, targetCtx = audioCtx, targetTime = 0) {
