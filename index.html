@@ -442,6 +442,9 @@
     let factoryLibrary = [];
     let userLibrary = [];
 
+    // Tracks all active audio nodes to instantly stop audio on pause or stop
+    let activeVoices = [];
+
     // Pads State (16 Pads)
     let padsState = Array.from({ length: 16 }, (_, i) => ({
       index: i,
@@ -513,6 +516,13 @@
       cutPoint: document.getElementById('val-cutPoint')
     };
 
+    // Helper to ensure Web Audio Context is active on user click
+    async function ensureAudioContextRunning() {
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+    }
+
     // Initialize Pad Options
     for (let i = 0; i < 16; i++) {
       const opt = document.createElement('option');
@@ -536,7 +546,8 @@
       selectPad(parseInt(e.target.value));
     });
 
-    soundBankSelect.addEventListener('change', (e) => {
+    soundBankSelect.addEventListener('change', async (e) => {
+      await ensureAudioContextRunning();
       const allSamples = [...factoryLibrary, ...userLibrary];
       const selectedSample = allSamples.find(s => s.id === e.target.value);
       if (selectedSample) {
@@ -545,6 +556,7 @@
     });
 
     async function handlePkbankImport(file) {
+      await ensureAudioContextRunning();
       const zip = await JSZip.loadAsync(file);
       const manifestFile = zip.file('manifest.json');
       let manifest = { pads: [] };
@@ -590,6 +602,7 @@
     }
 
     async function handleUserSampleUpload(files) {
+      await ensureAudioContextRunning();
       for (const file of files) {
         try {
           const arrayBuffer = await file.arrayBuffer();
@@ -657,7 +670,10 @@
           <span>${sample.name}</span>
           <button class="btn btn-secondary">Load to Pad</button>
         `;
-        item.querySelector('button').addEventListener('click', () => assignSampleToPad(sample, selectedPadIndex));
+        item.querySelector('button').addEventListener('click', async () => {
+          await ensureAudioContextRunning();
+          assignSampleToPad(sample, selectedPadIndex);
+        });
         factorySampleList.appendChild(item);
       });
 
@@ -669,7 +685,10 @@
           <span>${sample.name}</span>
           <button class="btn btn-secondary">Load to Pad</button>
         `;
-        item.querySelector('button').addEventListener('click', () => assignSampleToPad(sample, selectedPadIndex));
+        item.querySelector('button').addEventListener('click', async () => {
+          await ensureAudioContextRunning();
+          assignSampleToPad(sample, selectedPadIndex);
+        });
         userSampleList.appendChild(item);
       });
     }
@@ -692,7 +711,8 @@
           <div class="pad-index">PAD ${String(i + 1).padStart(2, '0')}</div>
           <div class="pad-name">${pad.name}</div>
         `;
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
+          await ensureAudioContextRunning();
           selectPad(i);
           triggerPadAudio(i);
         });
@@ -811,7 +831,7 @@
       }
       canvasCtx.stroke();
 
-      // Draw Trim Mask (Gray out untrimmed areas)
+      // Draw Trim Mask
       const trimStartPx = pad.trimStart * width;
       const trimEndPx = pad.trimEnd * width;
 
@@ -839,7 +859,8 @@
     }
 
     // WAV Split Functionality
-    splitSampleBtn.addEventListener('click', () => {
+    splitSampleBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
       const pad = padsState[selectedPadIndex];
       if (!pad || !pad.audioBuffer) return;
 
@@ -862,27 +883,26 @@
         part2Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(cutIndex));
       }
 
-      // Save to User Library
       const name1 = `${pad.name}_pt1`;
       const name2 = `${pad.name}_pt2`;
 
       userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, buffer: part1Buffer });
       userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, buffer: part2Buffer });
 
-      // Assign Part 1 to current pad
       assignSampleToPad({ name: name1, buffer: part1Buffer }, selectedPadIndex);
 
       refreshSoundBankDropdown();
       renderLibraries();
     });
 
-    auditionBtn.addEventListener('click', () => triggerPadAudio(selectedPadIndex));
+    auditionBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
+      triggerPadAudio(selectedPadIndex);
+    });
 
     function triggerPadAudio(index, targetCtx = audioCtx, targetTime = 0) {
       const pad = padsState[index];
       if (!pad || !pad.audioBuffer) return;
-
-      if (targetCtx.state === 'suspended') targetCtx.resume();
 
       const source = targetCtx.createBufferSource();
       source.buffer = pad.audioBuffer;
@@ -910,7 +930,13 @@
 
       source.start(targetTime, startTime, playDuration);
 
+      // Track active playing voices for instant stop capabilities
       if (targetCtx === audioCtx) {
+        activeVoices.push(source);
+        source.onended = () => {
+          activeVoices = activeVoices.filter(s => s !== source);
+        };
+
         const padEl = padsGrid.children[index];
         if (padEl) {
           padEl.classList.add('playing');
@@ -919,8 +945,19 @@
       }
     }
 
+    function stopAllVoices() {
+      activeVoices.forEach(source => {
+        try {
+          source.stop(0);
+          source.disconnect();
+        } catch (e) {}
+      });
+      activeVoices = [];
+    }
+
     // Step Sequencer Playback
-    playSeqBtn.addEventListener('click', () => {
+    playSeqBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
       if (isPlayingSeq) {
         stopSequence();
       } else {
@@ -956,6 +993,7 @@
       isPlayingSeq = false;
       playSeqBtn.innerText = 'Play Sequence';
       clearInterval(seqIntervalId);
+      stopAllVoices(); // Immediately stop lingering audio samples
       document.querySelectorAll('.seq-step').forEach(cell => cell.classList.remove('current-play'));
     }
 
