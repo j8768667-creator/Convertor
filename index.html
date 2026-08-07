@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pulsark Sampler, Sequencer & Video-to-WAV Studio</title>
+  <title>Pulsark Sampler & Sequencer Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -24,7 +24,7 @@
       background-color: var(--bg-color);
       color: var(--text-color);
       margin: 0;
-      padding: 20px;
+      padding: 15px;
     }
 
     header {
@@ -32,61 +32,127 @@
       justify-content: space-between;
       align-items: center;
       max-width: 1280px;
-      margin: 0 auto 20px auto;
+      margin: 0 auto 15px auto;
       border-bottom: 2px solid var(--border-color);
-      padding-bottom: 15px;
+      padding-bottom: 10px;
     }
 
-    h1 { margin: 0; font-size: 1.4rem; color: #fff; }
-    .header-actions { display: flex; gap: 10px; }
+    h1 { margin: 0; font-size: 1.3rem; color: #fff; }
+    .header-actions { display: flex; gap: 8px; }
 
     .container {
       max-width: 1280px;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 1fr;
-      gap: 20px;
+      gap: 15px;
     }
 
-    /* Sound Control Panel */
+    /* Compact Sequencer Section */
+    .sequencer-card {
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 14px;
+    }
+
+    .seq-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .seq-controls { display: flex; align-items: center; gap: 10px; }
+
+    .seq-grid-container {
+      overflow-x: auto;
+    }
+
+    .seq-grid {
+      display: grid;
+      grid-template-columns: 100px repeat(16, minmax(20px, 1fr));
+      gap: 2px;
+      align-items: center;
+    }
+
+    .seq-row-label {
+      font-size: 0.7rem;
+      font-weight: bold;
+      color: var(--muted-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .seq-step {
+      height: 18px;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 2px;
+      cursor: pointer;
+    }
+
+    .seq-step.active { background-color: var(--step-active); border-color: #00ff84; }
+    .seq-step.current-play { box-shadow: 0 0 6px #fff; border-color: #fff; }
+
+    /* Sound Control & Waveform Panel */
     .sound-editor-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      padding: 20px;
+      padding: 15px;
     }
 
     .editor-top-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
     }
 
     .sound-title {
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       font-weight: bold;
       color: #fff;
     }
 
-    .source-banner {
-      background-color: rgba(255, 255, 255, 0.03);
+    /* WAV Waveform Editor Canvas & Trim Controls */
+    .waveform-card {
+      background-color: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: 6px;
-      padding: 12px 16px;
-      margin-bottom: 20px;
+      padding: 12px;
+      margin-bottom: 15px;
+    }
+
+    .waveform-canvas-container {
+      position: relative;
+      width: 100%;
+      height: 100px;
+      background-color: #000;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .trim-slider-container {
       display: flex;
-      justify-content: space-between;
+      gap: 15px;
       align-items: center;
-      font-size: 0.85rem;
-      color: var(--muted-text);
     }
 
     .controls-grid {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
-      gap: 15px;
-      margin-bottom: 20px;
+      gap: 10px;
+      margin-bottom: 15px;
     }
 
     .control-group {
@@ -97,8 +163,8 @@
     .control-group label {
       display: flex;
       justify-content: space-between;
-      font-size: 0.75rem;
-      margin-bottom: 6px;
+      font-size: 0.7rem;
+      margin-bottom: 4px;
       color: var(--muted-text);
       text-transform: uppercase;
       font-weight: 600;
@@ -111,19 +177,18 @@
 
     .dropdown-group {
       display: flex;
-      gap: 15px;
-      margin-bottom: 10px;
+      gap: 12px;
     }
 
     .select-wrapper {
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 4px;
       flex: 1;
     }
 
     .select-wrapper label {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: var(--muted-text);
       text-transform: uppercase;
       font-weight: 600;
@@ -133,8 +198,8 @@
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
       color: #fff;
-      padding: 8px 12px;
-      border-radius: 6px;
+      padding: 6px 10px;
+      border-radius: 4px;
       outline: none;
     }
 
@@ -142,33 +207,33 @@
     .library-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      gap: 15px;
     }
 
     .lib-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      padding: 18px;
+      padding: 12px;
     }
 
     .lib-card h3 {
       margin-top: 0;
-      font-size: 1rem;
+      font-size: 0.95rem;
       border-bottom: 1px solid var(--border-color);
-      padding-bottom: 8px;
+      padding-bottom: 6px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
     .sample-list {
-      max-height: 180px;
+      max-height: 150px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      margin-top: 10px;
+      gap: 5px;
+      margin-top: 8px;
     }
 
     .sample-item {
@@ -176,105 +241,55 @@
       justify-content: space-between;
       align-items: center;
       background-color: var(--card-bg);
-      padding: 8px 12px;
+      padding: 6px 10px;
       border-radius: 4px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
     }
 
     .sample-item button {
-      padding: 4px 8px;
-      font-size: 0.75rem;
+      padding: 3px 6px;
+      font-size: 0.7rem;
     }
-
-    /* Step Sequencer Panel */
-    .sequencer-card {
-      background-color: var(--panel-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 18px;
-    }
-
-    .seq-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .seq-controls { display: flex; align-items: center; gap: 15px; }
-
-    .seq-grid-container {
-      overflow-x: auto;
-      padding-bottom: 5px;
-    }
-
-    .seq-grid {
-      display: grid;
-      grid-template-columns: 120px repeat(16, minmax(28px, 1fr));
-      gap: 4px;
-      align-items: center;
-    }
-
-    .seq-row-label {
-      font-size: 0.75rem;
-      font-weight: bold;
-      color: var(--muted-text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .seq-step {
-      aspect-ratio: 1;
-      background-color: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .seq-step.active { background-color: var(--step-active); border-color: #00ff84; }
-    .seq-step.current-play { box-shadow: 0 0 8px #fff; border-color: #fff; }
 
     /* Pads Grid */
     .pads-grid {
       display: grid;
       grid-template-columns: repeat(8, 1fr);
-      gap: 10px;
-      margin-top: 10px;
+      gap: 8px;
+      margin-top: 8px;
     }
 
     .pad-btn {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 6px;
-      padding: 10px;
+      padding: 8px;
       color: var(--text-color);
       text-align: left;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      height: 65px;
+      height: 55px;
       transition: all 0.1s ease;
     }
 
     .pad-btn:hover { border-color: #3b82f6; }
-    .pad-btn.active { border-color: var(--accent-color); box-shadow: 0 0 10px rgba(0,230,118,0.2); }
+    .pad-btn.active { border-color: var(--accent-color); box-shadow: 0 0 8px rgba(0,230,118,0.2); }
     .pad-btn.playing { background-color: #1e293b; transform: scale(0.98); }
 
-    .pad-index { font-size: 0.65rem; color: var(--muted-text); font-weight: bold; }
-    .pad-name { font-weight: bold; font-size: 0.8rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pad-index { font-size: 0.6rem; color: var(--muted-text); font-weight: bold; }
+    .pad-name { font-weight: bold; font-size: 0.75rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* UI Buttons */
     .btn {
       background-color: var(--btn-blue);
       color: white;
       border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
+      padding: 6px 12px;
+      border-radius: 4px;
       font-weight: 600;
+      font-size: 0.8rem;
       cursor: pointer;
       transition: background 0.2s;
     }
@@ -289,9 +304,10 @@
       background: var(--card-bg);
       border: 1px solid var(--border-color);
       color: #fff;
-      padding: 5px 8px;
+      padding: 4px 6px;
       border-radius: 4px;
-      width: 60px;
+      width: 50px;
+      font-size: 0.8rem;
     }
 
     input[type="file"] { display: none; }
@@ -300,12 +316,12 @@
 <body>
 
   <header>
-    <h1>Pulsark Sampler & Sequence Studio</h1>
+    <h1>Pulsark Sampler, Sequencer & WAV Trimmer</h1>
     <div class="header-actions">
       <button id="importPkbankBtn" class="btn btn-secondary">Import .pkbank</button>
-      <button id="exportPadWavBtn" class="btn btn-secondary">Export Selected Pad WAV</button>
+      <button id="uploadSampleBtn" class="btn btn-secondary">Upload Audio / Video</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
-      
+
       <input type="file" id="pkbankInput" accept=".pkbank,.zip">
       <input type="file" id="userSampleInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
     </div>
@@ -313,27 +329,56 @@
 
   <div class="container">
     
+    <div class="sequencer-card">
+      <div class="seq-header">
+        <h3 style="margin:0; font-size:0.9rem;">Compact Pattern Sequencer</h3>
+        <div class="seq-controls">
+          <label style="font-size:0.75rem; color: var(--muted-text);">
+            BPM: <input type="number" id="bpmInput" value="120" min="40" max="240">
+          </label>
+          <button id="playSeqBtn" class="btn btn-green">Play Sequence</button>
+        </div>
+      </div>
+      <div class="seq-grid-container">
+        <div class="seq-grid" id="seqGrid"></div>
+      </div>
+    </div>
+
     <div class="sound-editor-card">
       <div class="editor-top-bar">
         <div>
-          <span style="font-size:0.75rem; color:var(--muted-text); font-weight:bold;">BANK A · SOUND <span id="currentPadNum">01</span></span>
+          <span style="font-size:0.7rem; color:var(--muted-text); font-weight:bold;">PAD <span id="currentPadNum">01</span></span>
           <div class="sound-title" id="currentSoundTitle">BD 808</div>
         </div>
         <button id="auditionBtn" class="btn btn-green" style="display:flex; align-items:center; gap:6px;">
-          ▶ Audition sound
+          ▶ Play Sample
         </button>
       </div>
 
-      <div class="source-banner">
-        <div>
-          <strong style="color:#fff;">SOURCE AUDIO / VIDEO</strong><br>
-          <span id="sourceDescription">Load audio or video files directly. Controls below affect playback and WAV export.</span>
+      <div class="waveform-card">
+        <div class="waveform-canvas-container">
+          <canvas id="waveformCanvas"></canvas>
         </div>
-        <button id="uploadSampleBtn" class="btn btn-secondary">Upload Audio / Video</button>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div class="trim-slider-container" style="flex:1;">
+            <div class="control-group" style="flex:1;">
+              <label>Trim Start <span id="val-trimStart">0%</span></label>
+              <input type="range" id="param-trimStart" min="0" max="1" value="0" step="0.005">
+            </div>
+            <div class="control-group" style="flex:1;">
+              <label>Trim End <span id="val-trimEnd">100%</span></label>
+              <input type="range" id="param-trimEnd" min="0" max="1" value="1" step="0.005">
+            </div>
+            <div class="control-group" style="flex:1;">
+              <label>Split / Cut Point <span id="val-cutPoint">50%</span></label>
+              <input type="range" id="param-cutPoint" min="0" max="1" value="0.5" step="0.005">
+            </div>
+          </div>
+          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split Sample at Cut Point</button>
+        </div>
       </div>
 
-      <div style="font-size:0.75rem; color:var(--muted-text); font-weight:bold; margin-bottom:10px;">SOUND · PLAYBACK</div>
-      
       <div class="controls-grid">
         <div class="control-group">
           <label>Volume <span id="val-volume">100</span></label>
@@ -348,14 +393,6 @@
           <input type="range" id="param-pan" min="-1" max="1" value="0" step="0.05">
         </div>
         <div class="control-group">
-          <label>Attack <span id="val-attack">0 ms</span></label>
-          <input type="range" id="param-attack" min="0" max="1000" value="0">
-        </div>
-        <div class="control-group">
-          <label>Decay <span id="val-decay">2.0 s</span></label>
-          <input type="range" id="param-decay" min="0.1" max="5" value="2" step="0.1">
-        </div>
-        <div class="control-group">
           <label>Filter Cutoff <span id="val-cutoff">20000 Hz</span></label>
           <input type="range" id="param-cutoff" min="100" max="20000" value="20000" step="100">
         </div>
@@ -363,14 +400,11 @@
 
       <div class="dropdown-group">
         <div class="select-wrapper">
-          <label>Play mode</label>
-          <select id="param-playMode">
-            <option value="FWD">FWD</option>
-            <option value="REV">REV</option>
-          </select>
+          <label>Select Sound from Bank</label>
+          <select id="soundBankSelect"></select>
         </div>
         <div class="select-wrapper">
-          <label>Assign Sample To Pad</label>
+          <label>Assign to Pad</label>
           <select id="targetPadSelect"></select>
         </div>
       </div>
@@ -387,30 +421,15 @@
 
       <div class="lib-card">
         <h3>
-          User Uploaded Audio & Video
+          User Uploaded & Split Library
           <span style="font-size:0.75rem; color:var(--muted-text);" id="userCount">0 samples</span>
         </h3>
         <div class="sample-list" id="userSampleList"></div>
       </div>
     </div>
 
-    <div class="sequencer-card">
-      <div class="seq-header">
-        <h3 style="margin:0; font-size:1.1rem;">16-Step Pattern Sequencer</h3>
-        <div class="seq-controls">
-          <label style="font-size:0.85rem; color: var(--muted-text);">
-            BPM: <input type="number" id="bpmInput" value="120" min="40" max="240">
-          </label>
-          <button id="playSeqBtn" class="btn btn-green">Play Sequence</button>
-        </div>
-      </div>
-      <div class="seq-grid-container">
-        <div class="seq-grid" id="seqGrid"></div>
-      </div>
-    </div>
-
-    <div style="background-color: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 18px;">
-      <h3 style="margin:0 0 10px 0; font-size:1rem;">Drum Pads (1-16)</h3>
+    <div style="background-color: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
+      <h3 style="margin:0 0 8px 0; font-size:0.95rem;">Drum Pads (1-16)</h3>
       <div class="pads-grid" id="padsGrid"></div>
     </div>
 
@@ -431,20 +450,24 @@
       volume: 100,
       pitch: 0,
       pan: 0,
-      attack: 0,
-      decay: 2,
       cutoff: 20000,
-      playMode: 'FWD'
+      trimStart: 0,
+      trimEnd: 1,
+      cutPoint: 0.5
     }));
 
     let selectedPadIndex = 0;
 
-    // Sequencer State (16 Pads x 16 Steps)
+    // Compact Sequencer State
     const TOTAL_STEPS = 16;
     let sequenceMatrix = Array.from({ length: 16 }, () => Array(TOTAL_STEPS).fill(false));
     let isPlayingSeq = false;
     let currentSeqStep = 0;
     let seqIntervalId = null;
+
+    // Canvas Elements
+    const waveformCanvas = document.getElementById('waveformCanvas');
+    const canvasCtx = waveformCanvas.getContext('2d');
 
     // DOM Elements
     const importPkbankBtn = document.getElementById('importPkbankBtn');
@@ -453,6 +476,7 @@
     const userSampleInput = document.getElementById('userSampleInput');
     const padsGrid = document.getElementById('padsGrid');
     const targetPadSelect = document.getElementById('targetPadSelect');
+    const soundBankSelect = document.getElementById('soundBankSelect');
 
     const factorySampleList = document.getElementById('factorySampleList');
     const userSampleList = document.getElementById('userSampleList');
@@ -463,7 +487,7 @@
     const bpmInput = document.getElementById('bpmInput');
     const playSeqBtn = document.getElementById('playSeqBtn');
     const exportSeqWavBtn = document.getElementById('exportSeqWavBtn');
-    const exportPadWavBtn = document.getElementById('exportPadWavBtn');
+    const splitSampleBtn = document.getElementById('splitSampleBtn');
 
     const currentPadNum = document.getElementById('currentPadNum');
     const currentSoundTitle = document.getElementById('currentSoundTitle');
@@ -473,21 +497,23 @@
       volume: document.getElementById('param-volume'),
       pitch: document.getElementById('param-pitch'),
       pan: document.getElementById('param-pan'),
-      attack: document.getElementById('param-attack'),
-      decay: document.getElementById('param-decay'),
       cutoff: document.getElementById('param-cutoff'),
-      playMode: document.getElementById('param-playMode')
+      trimStart: document.getElementById('param-trimStart'),
+      trimEnd: document.getElementById('param-trimEnd'),
+      cutPoint: document.getElementById('param-cutPoint')
     };
 
     const labels = {
       volume: document.getElementById('val-volume'),
       pitch: document.getElementById('val-pitch'),
       pan: document.getElementById('val-pan'),
-      attack: document.getElementById('val-attack'),
-      decay: document.getElementById('val-decay'),
-      cutoff: document.getElementById('val-cutoff')
+      cutoff: document.getElementById('val-cutoff'),
+      trimStart: document.getElementById('val-trimStart'),
+      trimEnd: document.getElementById('val-trimEnd'),
+      cutPoint: document.getElementById('val-cutPoint')
     };
 
+    // Initialize Pad Options
     for (let i = 0; i < 16; i++) {
       const opt = document.createElement('option');
       opt.value = i;
@@ -508,6 +534,14 @@
 
     targetPadSelect.addEventListener('change', (e) => {
       selectPad(parseInt(e.target.value));
+    });
+
+    soundBankSelect.addEventListener('change', (e) => {
+      const allSamples = [...factoryLibrary, ...userLibrary];
+      const selectedSample = allSamples.find(s => s.id === e.target.value);
+      if (selectedSample) {
+        assignSampleToPad(selectedSample, selectedPadIndex);
+      }
     });
 
     async function handlePkbankImport(file) {
@@ -542,38 +576,73 @@
             padsState[index].pitch = padMeta.pitch ?? 0;
             padsState[index].pan = padMeta.pan ?? 0;
             padsState[index].cutoff = padMeta.cutoff ?? 20000;
+            padsState[index].trimStart = padMeta.trimStart ?? 0;
+            padsState[index].trimEnd = padMeta.trimEnd ?? 1;
           }
         }
       }
 
+      refreshSoundBankDropdown();
       renderLibraries();
       renderPads();
       renderSequencerGrid();
       selectPad(0);
     }
 
-    // Handles uploading Audio AND extracts Audio tracks from imported Video files
     async function handleUserSampleUpload(files) {
       for (const file of files) {
         try {
           const arrayBuffer = await file.arrayBuffer();
-          // Web Audio API decodes both audio files AND audio tracks embedded inside video files (.mp4, .mov, .webm)
           const buffer = await audioCtx.decodeAudioData(arrayBuffer);
           const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
           const name = (isVideo ? '[Vid] ' : '') + file.name.replace(/\.[^/.]+$/, "");
 
-          userLibrary.push({
+          const newSample = {
             id: `usr_${Date.now()}_${Math.random()}`,
             name,
             buffer
-          });
+          };
+
+          userLibrary.push(newSample);
+
+          // Auto-assign uploaded sample to currently active pad
+          assignSampleToPad(newSample, selectedPadIndex);
         } catch (err) {
           console.error("Could not decode audio from file:", file.name, err);
-          alert(`Could not extract audio track from ${file.name}. Ensure it contains an audio channel.`);
+          alert(`Could not extract audio track from ${file.name}. Ensure it contains valid audio.`);
         }
       }
 
+      refreshSoundBankDropdown();
       renderLibraries();
+    }
+
+    function refreshSoundBankDropdown() {
+      soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Sound Bank --</option>';
+
+      if (factoryLibrary.length > 0) {
+        const factGroup = document.createElement('optgroup');
+        factGroup.label = 'Factory / PKBank Library';
+        factoryLibrary.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.innerText = s.name;
+          factGroup.appendChild(opt);
+        });
+        soundBankSelect.appendChild(factGroup);
+      }
+
+      if (userLibrary.length > 0) {
+        const userGroup = document.createElement('optgroup');
+        userGroup.label = 'User Uploaded / Split Library';
+        userLibrary.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.innerText = s.name;
+          userGroup.appendChild(opt);
+        });
+        soundBankSelect.appendChild(userGroup);
+      }
     }
 
     function renderLibraries() {
@@ -586,9 +655,9 @@
         item.className = 'sample-item';
         item.innerHTML = `
           <span>${sample.name}</span>
-          <button class="btn btn-secondary">Load to Selected Pad</button>
+          <button class="btn btn-secondary">Load to Pad</button>
         `;
-        item.querySelector('button').addEventListener('click', () => assignSampleToCurrentPad(sample));
+        item.querySelector('button').addEventListener('click', () => assignSampleToPad(sample, selectedPadIndex));
         factorySampleList.appendChild(item);
       });
 
@@ -598,20 +667,20 @@
         item.className = 'sample-item';
         item.innerHTML = `
           <span>${sample.name}</span>
-          <button class="btn btn-secondary">Load to Selected Pad</button>
+          <button class="btn btn-secondary">Load to Pad</button>
         `;
-        item.querySelector('button').addEventListener('click', () => assignSampleToCurrentPad(sample));
+        item.querySelector('button').addEventListener('click', () => assignSampleToPad(sample, selectedPadIndex));
         userSampleList.appendChild(item);
       });
     }
 
-    function assignSampleToCurrentPad(sample) {
-      padsState[selectedPadIndex].name = sample.name;
-      padsState[selectedPadIndex].audioBuffer = sample.buffer;
+    function assignSampleToPad(sample, padIdx) {
+      padsState[padIdx].name = sample.name;
+      padsState[padIdx].audioBuffer = sample.buffer;
       renderPads();
       renderSequencerGrid();
-      selectPad(selectedPadIndex);
-      triggerPadAudio(selectedPadIndex);
+      selectPad(padIdx);
+      triggerPadAudio(padIdx);
     }
 
     function renderPads() {
@@ -673,33 +742,139 @@
       inputs.volume.value = pad.volume;
       inputs.pitch.value = pad.pitch;
       inputs.pan.value = pad.pan;
-      inputs.attack.value = pad.attack;
-      inputs.decay.value = pad.decay;
       inputs.cutoff.value = pad.cutoff;
-      inputs.playMode.value = pad.playMode;
+      inputs.trimStart.value = pad.trimStart;
+      inputs.trimEnd.value = pad.trimEnd;
+      inputs.cutPoint.value = pad.cutPoint;
 
       updateLabels();
+      drawWaveform();
     }
 
     function updateLabels() {
       labels.volume.innerText = inputs.volume.value;
       labels.pitch.innerText = `${inputs.pitch.value} st`;
       labels.pan.innerText = inputs.pan.value == 0 ? 'C' : (inputs.pan.value < 0 ? `L${Math.abs(inputs.pan.value)}` : `R${inputs.pan.value}`);
-      labels.attack.innerText = `${inputs.attack.value} ms`;
-      labels.decay.innerText = `${inputs.decay.value} s`;
       labels.cutoff.innerText = `${inputs.cutoff.value} Hz`;
+      labels.trimStart.innerText = `${Math.round(inputs.trimStart.value * 100)}%`;
+      labels.trimEnd.innerText = `${Math.round(inputs.trimEnd.value * 100)}%`;
+      labels.cutPoint.innerText = `${Math.round(inputs.cutPoint.value * 100)}%`;
 
       const pad = padsState[selectedPadIndex];
       pad.volume = parseFloat(inputs.volume.value);
       pad.pitch = parseFloat(inputs.pitch.value);
       pad.pan = parseFloat(inputs.pan.value);
-      pad.attack = parseFloat(inputs.attack.value);
-      pad.decay = parseFloat(inputs.decay.value);
       pad.cutoff = parseFloat(inputs.cutoff.value);
-      pad.playMode = inputs.playMode.value;
+      pad.trimStart = parseFloat(inputs.trimStart.value);
+      pad.trimEnd = parseFloat(inputs.trimEnd.value);
+      pad.cutPoint = parseFloat(inputs.cutPoint.value);
+
+      drawWaveform();
     }
 
     Object.values(inputs).forEach(input => input.addEventListener('input', updateLabels));
+
+    // Render Canvas Waveform with Trimming and Cut Overlays
+    function drawWaveform() {
+      const pad = padsState[selectedPadIndex];
+      const width = waveformCanvas.width = waveformCanvas.clientWidth;
+      const height = waveformCanvas.height = waveformCanvas.clientHeight;
+
+      canvasCtx.clearRect(0, 0, width, height);
+
+      if (!pad || !pad.audioBuffer) {
+        canvasCtx.fillStyle = '#4b5563';
+        canvasCtx.font = '12px sans-serif';
+        canvasCtx.fillText('No Audio Loaded on Selected Pad', 10, height / 2 + 4);
+        return;
+      }
+
+      const data = pad.audioBuffer.getChannelData(0);
+      const step = Math.ceil(data.length / width);
+      const amp = height / 2;
+
+      // Draw Base Waveform
+      canvasCtx.beginPath();
+      canvasCtx.strokeStyle = '#3b82f6';
+      canvasCtx.lineWidth = 1;
+
+      for (let i = 0; i < width; i++) {
+        let min = 1.0;
+        let max = -1.0;
+        for (let j = 0; j < step; j++) {
+          const datum = data[(i * step) + j];
+          if (datum < min) min = datum;
+          if (datum > max) max = datum;
+        }
+        canvasCtx.moveTo(i, (1 + min) * amp);
+        canvasCtx.lineTo(i, (1 + max) * amp);
+      }
+      canvasCtx.stroke();
+
+      // Draw Trim Mask (Gray out untrimmed areas)
+      const trimStartPx = pad.trimStart * width;
+      const trimEndPx = pad.trimEnd * width;
+
+      canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      canvasCtx.fillRect(0, 0, trimStartPx, height);
+      canvasCtx.fillRect(trimEndPx, 0, width - trimEndPx, height);
+
+      // Draw Trim Start/End Handles
+      canvasCtx.strokeStyle = '#00e676';
+      canvasCtx.lineWidth = 2;
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(trimStartPx, 0); canvasCtx.lineTo(trimStartPx, height);
+      canvasCtx.moveTo(trimEndPx, 0); canvasCtx.lineTo(trimEndPx, height);
+      canvasCtx.stroke();
+
+      // Draw Split Cut Point Line
+      const cutPx = pad.cutPoint * width;
+      canvasCtx.strokeStyle = '#ef4444';
+      canvasCtx.lineWidth = 2;
+      canvasCtx.setLineDash([4, 4]);
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(cutPx, 0); canvasCtx.lineTo(cutPx, height);
+      canvasCtx.stroke();
+      canvasCtx.setLineDash([]);
+    }
+
+    // WAV Split Functionality
+    splitSampleBtn.addEventListener('click', () => {
+      const pad = padsState[selectedPadIndex];
+      if (!pad || !pad.audioBuffer) return;
+
+      const buffer = pad.audioBuffer;
+      const cutIndex = Math.floor(buffer.length * pad.cutPoint);
+
+      if (cutIndex <= 0 || cutIndex >= buffer.length) return;
+
+      // Slice Part 1
+      const part1Length = cutIndex;
+      const part1Buffer = audioCtx.createBuffer(buffer.numberOfChannels, part1Length, buffer.sampleRate);
+      for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        part1Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(0, part1Length));
+      }
+
+      // Slice Part 2
+      const part2Length = buffer.length - cutIndex;
+      const part2Buffer = audioCtx.createBuffer(buffer.numberOfChannels, part2Length, buffer.sampleRate);
+      for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        part2Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(cutIndex));
+      }
+
+      // Save to User Library
+      const name1 = `${pad.name}_pt1`;
+      const name2 = `${pad.name}_pt2`;
+
+      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, buffer: part1Buffer });
+      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, buffer: part2Buffer });
+
+      // Assign Part 1 to current pad
+      assignSampleToPad({ name: name1, buffer: part1Buffer }, selectedPadIndex);
+
+      refreshSoundBankDropdown();
+      renderLibraries();
+    });
 
     auditionBtn.addEventListener('click', () => triggerPadAudio(selectedPadIndex));
 
@@ -729,7 +904,11 @@
       gainNode.connect(panner);
       panner.connect(targetCtx.destination);
 
-      source.start(targetTime);
+      const duration = pad.audioBuffer.duration;
+      const startTime = (pad.trimStart || 0) * duration;
+      const playDuration = Math.max(0.01, ((pad.trimEnd || 1) - (pad.trimStart || 0)) * duration);
+
+      source.start(targetTime, startTime, playDuration);
 
       if (targetCtx === audioCtx) {
         const padEl = padsGrid.children[index];
@@ -740,7 +919,7 @@
       }
     }
 
-    // Step Sequencer Logic
+    // Step Sequencer Playback
     playSeqBtn.addEventListener('click', () => {
       if (isPlayingSeq) {
         stopSequence();
@@ -780,7 +959,7 @@
       document.querySelectorAll('.seq-step').forEach(cell => cell.classList.remove('current-play'));
     }
 
-    // Export Sequence or Selected Pad to WAV
+    // Offline Audio Renderer for WAV Sequence Export
     async function renderSequenceToAudioBuffer() {
       const bpm = parseFloat(bpmInput.value) || 120;
       const secondsPerStep = 60 / bpm / 4;
@@ -873,21 +1052,11 @@
       }
     });
 
-    exportPadWavBtn.addEventListener('click', async () => {
-      const pad = padsState[selectedPadIndex];
-      if (!pad || !pad.audioBuffer) return;
-
-      const offlineCtx = new OfflineAudioContext(2, pad.audioBuffer.length, pad.audioBuffer.sampleRate);
-      triggerPadAudio(selectedPadIndex, offlineCtx, 0);
-      const renderedBuffer = await offlineCtx.startRendering();
-      const wavBlob = audioBufferToWavBlob(renderedBuffer);
-      triggerDownload(wavBlob, `${pad.name.toLowerCase().replace(/\s+/g, '_')}.wav`);
-    });
-
     // Initial Setup
     renderPads();
     renderSequencerGrid();
     renderLibraries();
+    refreshSoundBankDropdown();
     selectPad(0);
   </script>
 </body>
