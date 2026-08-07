@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sample Sequencer</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O51fX8OrTkxCQv/0fJ79tG+pQ/0G8m1zI9U4/b0b5pWn8qQ7qjK8/U4N0jA8Y8G6O50A==" crossorigin="anonymous"></script>
   <style>
     :root {
       --bg-color: #0b0f19;
@@ -29,6 +30,12 @@
       padding: 15px;
     }
 
+    /* Accessibility Focus Style */
+    *:focus-visible {
+      outline: 2px solid var(--accent-color);
+      outline-offset: 2px;
+    }
+
     header {
       display: flex;
       justify-content: space-between;
@@ -37,10 +44,12 @@
       margin: 0 auto 15px auto;
       border-bottom: 2px solid var(--border-color);
       padding-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     h1 { margin: 0; font-size: 1.3rem; color: #fff; }
-    .header-actions { display: flex; gap: 8px; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .container {
       max-width: 1280px;
@@ -49,6 +58,55 @@
       grid-template-columns: 1fr;
       gap: 15px;
     }
+
+    /* Toast Notification Banner */
+    #toastContainer {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .toast.error { border-color: var(--btn-red); }
+    .toast.info { border-color: #3b82f6; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Loading Overlay */
+    #loadingOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 15, 25, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+      font-weight: bold;
+      z-index: 9000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    #loadingOverlay.active { opacity: 1; pointer-events: auto; }
 
     .sequencer-card {
       background-color: var(--panel-bg);
@@ -106,8 +164,10 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 12px;
+      gap: 10px;
     }
 
+    .sound-title-container { display: flex; align-items: center; gap: 10px; }
     .sound-title { font-size: 1.1rem; font-weight: bold; color: #fff; }
     .audio-playback-actions { display: flex; gap: 8px; }
 
@@ -203,7 +263,6 @@
       padding-right: 4px;
     }
 
-    /* Custom Scrollbar Styling */
     .sample-list::-webkit-scrollbar,
     .folder-contents::-webkit-scrollbar {
       width: 6px;
@@ -317,7 +376,7 @@
     .btn-secondary { background-color: #374151; }
     .btn-secondary:hover { background-color: #4b5563; }
 
-    .slice-actions { display: flex; gap: 6px; }
+    .slice-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
     input[type="number"] {
       background: var(--card-bg);
@@ -330,9 +389,26 @@
     }
 
     input[type="file"] { display: none; }
+
+    /* Responsive Breakpoints */
+    @media (max-width: 900px) {
+      .controls-grid { grid-template-columns: repeat(2, 1fr); }
+      .pads-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    @media (max-width: 640px) {
+      .library-grid { grid-template-columns: 1fr; }
+      .controls-grid { grid-template-columns: 1fr; }
+      .pads-grid { grid-template-columns: repeat(4, 1fr); }
+      .dropdown-group { flex-direction: column; }
+      .trim-slider-container { flex-direction: column; }
+    }
   </style>
 </head>
 <body>
+
+  <div id="toastContainer"></div>
+  <div id="loadingOverlay">Processing Media File(s)...</div>
 
   <header>
     <h1>Sample Sequencer</h1>
@@ -350,10 +426,11 @@
       <div class="seq-header">
         <h3 style="margin:0; font-size:0.9rem;">Compact Pattern Sequencer</h3>
         <div class="seq-controls">
-          <label style="font-size:0.75rem; color: var(--muted-text);">
-            BPM: <input type="number" id="bpmInput" value="120" min="40" max="240">
+          <label for="bpmInput" style="font-size:0.75rem; color: var(--muted-text);">
+            BPM:
           </label>
-          <button id="playSeqBtn" class="btn btn-green">Play Sequence</button>
+          <input type="number" id="bpmInput" value="120" min="40" max="240">
+          <button id="playSeqBtn" class="btn btn-green" aria-label="Play or Pause Sequence">Play Sequence</button>
         </div>
       </div>
       <div class="seq-grid-container">
@@ -363,13 +440,16 @@
 
     <div class="sound-editor-card">
       <div class="editor-top-bar">
-        <div>
-          <span style="font-size:0.7rem; color:var(--muted-text); font-weight:bold;">PAD <span id="currentPadNum">01</span></span>
-          <div class="sound-title" id="currentSoundTitle">Empty Pad</div>
+        <div class="sound-title-container">
+          <div>
+            <span style="font-size:0.7rem; color:var(--muted-text); font-weight:bold;">PAD <span id="currentPadNum">01</span></span>
+            <div class="sound-title" id="currentSoundTitle">Empty Pad</div>
+          </div>
+          <button id="clearPadBtn" class="btn btn-secondary" style="font-size:0.7rem; padding:3px 8px;" title="Clear pad audio">Clear Pad</button>
         </div>
         <div class="audio-playback-actions">
-          <button id="auditionBtn" class="btn btn-green">▶ Play Sample</button>
-          <button id="stopSampleBtn" class="btn btn-red">■ Stop Sample</button>
+          <button id="auditionBtn" class="btn btn-green"><span aria-hidden="true">▶</span> Play Sample</button>
+          <button id="stopSampleBtn" class="btn btn-red"><span aria-hidden="true">■</span> Stop Sample</button>
         </div>
       </div>
 
@@ -381,21 +461,21 @@
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
           <div class="trim-slider-container" style="flex:1;">
             <div class="control-group" style="flex:1;">
-              <label>Trim Start <span id="val-trimStart">0%</span></label>
+              <label for="param-trimStart">Trim Start <span id="val-trimStart">0%</span></label>
               <input type="range" id="param-trimStart" min="0" max="1" value="0" step="0.005">
             </div>
             <div class="control-group" style="flex:1;">
-              <label>Trim End <span id="val-trimEnd">100%</span></label>
+              <label for="param-trimEnd">Trim End <span id="val-trimEnd">100%</span></label>
               <input type="range" id="param-trimEnd" min="0" max="1" value="1" step="0.005">
             </div>
             <div class="control-group" style="flex:1;">
-              <label>Split / Cut Point <span id="val-cutPoint">50%</span></label>
+              <label for="param-cutPoint">Split / Cut Point <span id="val-cutPoint">50%</span></label>
               <input type="range" id="param-cutPoint" min="0" max="1" value="0.5" step="0.005">
             </div>
           </div>
 
           <div class="slice-actions">
-            <button id="splitSampleBtn" class="btn btn-secondary">✂ Cut at Point</button>
+            <button id="splitSampleBtn" class="btn btn-secondary"><span aria-hidden="true">✂</span> Cut at Point</button>
             <button id="slice4Btn" class="btn btn-secondary">Slice to 4 Pads</button>
             <button id="slice8Btn" class="btn btn-secondary">Slice to 8 Pads</button>
           </div>
@@ -404,30 +484,30 @@
 
       <div class="controls-grid">
         <div class="control-group">
-          <label>Volume <span id="val-volume">100</span></label>
+          <label for="param-volume">Volume <span id="val-volume">100</span></label>
           <input type="range" id="param-volume" min="0" max="150" value="100">
         </div>
         <div class="control-group">
-          <label>Pitch <span id="val-pitch">0 st</span></label>
+          <label for="param-pitch">Pitch <span id="val-pitch">0 st</span></label>
           <input type="range" id="param-pitch" min="-12" max="12" value="0" step="1">
         </div>
         <div class="control-group">
-          <label>Pan <span id="val-pan">C</span></label>
+          <label for="param-pan">Pan <span id="val-pan">C</span></label>
           <input type="range" id="param-pan" min="-1" max="1" value="0" step="0.05">
         </div>
         <div class="control-group">
-          <label>Filter Cutoff <span id="val-cutoff">20000 Hz</span></label>
+          <label for="param-cutoff">Filter Cutoff <span id="val-cutoff">20000 Hz</span></label>
           <input type="range" id="param-cutoff" min="100" max="20000" value="20000" step="100">
         </div>
       </div>
 
       <div class="dropdown-group">
         <div class="select-wrapper">
-          <label>Select Sound from Library</label>
+          <label for="soundBankSelect">Select Sound from Library</label>
           <select id="soundBankSelect"></select>
         </div>
         <div class="select-wrapper">
-          <label>Assign to Pad</label>
+          <label for="targetPadSelect">Assign to Pad</label>
           <select id="targetPadSelect"></select>
         </div>
       </div>
@@ -459,13 +539,27 @@
   </div>
 
   <script>
+    const NUM_PADS = 16;
+    const TOTAL_STEPS = 16;
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
+    // Master Limiter / Dynamics Compressor Node
+    const masterGain = audioCtx.createGain();
+    const masterCompressor = audioCtx.createDynamicsCompressor();
+    masterCompressor.threshold.setValueAtTime(-1.0, audioCtx.currentTime);
+    masterCompressor.knee.setValueAtTime(0, audioCtx.currentTime);
+    masterCompressor.ratio.setValueAtTime(20, audioCtx.currentTime);
+    masterCompressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+    masterCompressor.release.setValueAtTime(0.1, audioCtx.currentTime);
+
+    masterGain.connect(masterCompressor);
+    masterCompressor.connect(audioCtx.destination);
+
     let factoryLibrary = [];
     let userLibrary = [];
     let activeVoices = [];
 
-    let padsState = Array.from({ length: 16 }, (_, i) => ({
+    let padsState = Array.from({ length: NUM_PADS }, (_, i) => ({
       index: i,
       name: `Pad ${i + 1}`,
       audioBuffer: null,
@@ -479,11 +573,15 @@
     }));
 
     let selectedPadIndex = 0;
-    const TOTAL_STEPS = 16;
-    let sequenceMatrix = Array.from({ length: 16 }, () => Array(TOTAL_STEPS).fill(false));
+    let sequenceMatrix = Array.from({ length: NUM_PADS }, () => Array(TOTAL_STEPS).fill(false));
+
+    // Lookahead Scheduler Variables
     let isPlayingSeq = false;
     let currentSeqStep = 0;
-    let seqIntervalId = null;
+    let nextNoteTime = 0.0;
+    let timerID = null;
+    const lookahead = 25.0; // ms
+    const scheduleAheadTime = 0.1; // seconds
 
     const waveformCanvas = document.getElementById('waveformCanvas');
     const canvasCtx = waveformCanvas.getContext('2d');
@@ -505,11 +603,13 @@
     const splitSampleBtn = document.getElementById('splitSampleBtn');
     const slice4Btn = document.getElementById('slice4Btn');
     const slice8Btn = document.getElementById('slice8Btn');
+    const clearPadBtn = document.getElementById('clearPadBtn');
 
     const currentPadNum = document.getElementById('currentPadNum');
     const currentSoundTitle = document.getElementById('currentSoundTitle');
     const auditionBtn = document.getElementById('auditionBtn');
     const stopSampleBtn = document.getElementById('stopSampleBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
 
     const inputs = {
       volume: document.getElementById('param-volume'),
@@ -531,13 +631,30 @@
       cutPoint: document.getElementById('val-cutPoint')
     };
 
+    // UI Helper Functions
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      const container = document.getElementById('toastContainer');
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 200);
+      }, 3500);
+    }
+
+    function setLoading(isLoading) {
+      loadingOverlay.classList.toggle('active', isLoading);
+    }
+
     async function ensureAudioContextRunning() {
       if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
       }
     }
 
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < NUM_PADS; i++) {
       const opt = document.createElement('option');
       opt.value = i;
       opt.innerText = `Pad ${i + 1}`;
@@ -547,18 +664,21 @@
     importMediaBtn.addEventListener('click', () => mediaInput.click());
 
     mediaInput.addEventListener('change', async (e) => {
-      if (e.target.files.length) {
-        const zipFiles = [];
-        const mediaFiles = [];
+      if (!e.target.files.length) return;
+      setLoading(true);
 
-        for (const file of e.target.files) {
-          if (file.name.toLowerCase().endsWith('.zip')) {
-            zipFiles.push(file);
-          } else {
-            mediaFiles.push(file);
-          }
+      const zipFiles = [];
+      const mediaFiles = [];
+
+      for (const file of e.target.files) {
+        if (file.name.toLowerCase().endsWith('.zip')) {
+          zipFiles.push(file);
+        } else {
+          mediaFiles.push(file);
         }
+      }
 
+      try {
         for (const zipFile of zipFiles) {
           await handleZipImport(zipFile);
         }
@@ -566,7 +686,10 @@
         if (mediaFiles.length > 0) {
           await handleUserSampleUpload(mediaFiles);
         }
-
+      } catch (err) {
+        showToast("Error processing media upload", "error");
+      } finally {
+        setLoading(false);
         e.target.value = '';
       }
     });
@@ -582,10 +705,23 @@
       }
     });
 
+    clearPadBtn.addEventListener('click', () => {
+      padsState[selectedPadIndex].audioBuffer = null;
+      padsState[selectedPadIndex].name = `Pad ${selectedPadIndex + 1}`;
+      renderPads();
+      renderSequencerGrid();
+      selectPad(selectedPadIndex);
+      showToast(`Cleared Pad ${selectedPadIndex + 1}`, 'info');
+    });
+
     // ZIP Archive Import
     async function handleZipImport(file) {
       await ensureAudioContextRunning();
       try {
+        if (typeof JSZip === 'undefined') {
+          showToast("JSZip library not loaded yet. Please wait a moment.", "error");
+          return;
+        }
         const zip = await JSZip.loadAsync(file);
         const folderName = file.name.replace(/\.zip$/i, '');
         
@@ -609,7 +745,7 @@
         });
 
         if (archiveFiles.length === 0) {
-          alert(`No compatible audio files found inside ${file.name}.`);
+          showToast(`No compatible audio files found inside ${file.name}.`, 'error');
           return;
         }
 
@@ -643,7 +779,7 @@
           factoryLibrary.push(newSample);
 
           const index = padMeta && padMeta.index !== undefined ? padMeta.index : i;
-          if (index >= 0 && index < 16) {
+          if (index >= 0 && index < NUM_PADS) {
             padsState[index].name = sampleName;
             padsState[index].audioBuffer = buffer;
             if (padMeta) {
@@ -662,9 +798,10 @@
         renderPads();
         renderSequencerGrid();
         selectPad(0);
+        showToast(`Imported archive ${file.name}`, 'info');
       } catch (err) {
         console.error("Failed to extract ZIP archive:", err);
-        alert("Failed to extract ZIP file. Ensure it is a valid zip archive.");
+        showToast("Failed to extract ZIP file.", 'error');
       }
     }
 
@@ -678,7 +815,7 @@
           try {
             buffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
           } catch(e) {
-            buffer = await extractAudioFromMedia(file);
+            buffer = await extractAudioFromMedia(file, arrayBuffer);
           }
 
           const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
@@ -687,9 +824,10 @@
           
           userLibrary.push(newSample);
           assignSampleToPad(newSample, selectedPadIndex);
+          showToast(`Loaded ${file.name}`, 'info');
         } catch (err) {
           console.error("Could not decode audio from file:", file.name, err);
-          alert(`Could not extract audio track from ${file.name}.`);
+          showToast(`Could not extract audio from ${file.name}.`, 'error');
         }
       }
 
@@ -697,25 +835,40 @@
       renderLibraries();
     }
 
-    function extractAudioFromMedia(file) {
+    function extractAudioFromMedia(file, preloadedBuffer) {
       return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error("Media extraction timed out"));
+        }, 10000);
+
         const url = URL.createObjectURL(file);
         const video = document.createElement('video');
+        
+        function cleanup() {
+          clearTimeout(timeout);
+          URL.revokeObjectURL(url);
+          video.removeAttribute('src');
+          video.load();
+        }
+
         video.src = url;
         video.crossOrigin = 'anonymous';
         video.onloadedmetadata = async () => {
           try {
             const offlineCtx = new OfflineAudioContext(2, Math.ceil(video.duration * 44100), 44100);
-            const response = await fetch(url);
-            const arrayBuf = await response.arrayBuffer();
-            const decoded = await offlineCtx.decodeAudioData(arrayBuf);
-            URL.revokeObjectURL(url);
+            const decoded = await offlineCtx.decodeAudioData(preloadedBuffer.slice(0));
+            cleanup();
             resolve(decoded);
           } catch(err) {
+            cleanup();
             reject(err);
           }
         };
-        video.onerror = reject;
+        video.onerror = (e) => {
+          cleanup();
+          reject(e);
+        };
       });
     }
 
@@ -738,7 +891,7 @@
         factoryFolders[folder].forEach(s => {
           const opt = document.createElement('option');
           opt.value = s.id;
-          opt.innerText = s.name;
+          opt.textContent = s.name;
           group.appendChild(opt);
         });
         soundBankSelect.appendChild(group);
@@ -752,7 +905,7 @@
           userFolders[folder].forEach(s => {
             const opt = document.createElement('option');
             opt.value = s.id;
-            opt.innerText = s.name;
+            opt.textContent = s.name;
             group.appendChild(opt);
           });
           soundBankSelect.appendChild(group);
@@ -761,8 +914,8 @@
     }
 
     function renderLibraries() {
-      factoryCount.innerText = `${factoryLibrary.length} samples`;
-      userCount.innerText = `${userLibrary.length} samples`;
+      factoryCount.textContent = `${factoryLibrary.length} samples`;
+      userCount.textContent = `${userLibrary.length} samples`;
 
       renderFolderList(factoryLibrary, factorySampleList);
       renderFolderList(userLibrary, userSampleList);
@@ -772,7 +925,10 @@
       targetContainer.innerHTML = '';
 
       if (libraryList.length === 0) {
-        targetContainer.innerHTML = '<div style="font-size:0.75rem; color:var(--muted-text); padding:4px;">No samples imported</div>';
+        const emptyMsg = document.createElement('div');
+        emptyMsg.style.cssText = 'font-size:0.75rem; color:var(--muted-text); padding:4px;';
+        emptyMsg.textContent = 'No samples imported';
+        targetContainer.appendChild(emptyMsg);
         return;
       }
 
@@ -789,7 +945,14 @@
 
         const headerEl = document.createElement('div');
         headerEl.className = 'folder-header';
-        headerEl.innerHTML = `<span>▼ 📁 ${folderName}</span> <span>(${grouped[folderName].length})</span>`;
+        
+        const folderTitleSpan = document.createElement('span');
+        folderTitleSpan.textContent = `▼ 📁 ${folderName}`;
+        const folderCountSpan = document.createElement('span');
+        folderCountSpan.textContent = `(${grouped[folderName].length})`;
+        
+        headerEl.appendChild(folderTitleSpan);
+        headerEl.appendChild(folderCountSpan);
 
         const contentsEl = document.createElement('div');
         contentsEl.className = 'folder-contents';
@@ -797,17 +960,27 @@
         headerEl.addEventListener('click', () => {
           const isCollapsed = contentsEl.style.display === 'none';
           contentsEl.style.display = isCollapsed ? 'flex' : 'none';
-          headerEl.querySelector('span').innerText = (isCollapsed ? '▼' : '►') + ` 📁 ${folderName}`;
+          folderTitleSpan.textContent = (isCollapsed ? '▼' : '►') + ` 📁 ${folderName}`;
         });
 
         grouped[folderName].forEach(sample => {
           const item = document.createElement('div');
           item.className = 'sample-item';
-          item.innerHTML = `<span title="${sample.name}">${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
-          item.querySelector('button').addEventListener('click', async () => {
+          
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = sample.name;
+          nameSpan.title = sample.name;
+
+          const loadBtn = document.createElement('button');
+          loadBtn.className = 'btn btn-secondary';
+          loadBtn.textContent = 'Load to Pad';
+          loadBtn.addEventListener('click', async () => {
             await ensureAudioContextRunning();
             assignSampleToPad(sample, selectedPadIndex);
           });
+
+          item.appendChild(nameSpan);
+          item.appendChild(loadBtn);
           contentsEl.appendChild(item);
         });
 
@@ -830,36 +1003,74 @@
       padsState.forEach((pad, i) => {
         const btn = document.createElement('div');
         btn.className = `pad-btn ${selectedPadIndex === i ? 'active' : ''}`;
-        btn.innerHTML = `
-          <div class="pad-index">PAD ${String(i + 1).padStart(2, '0')}</div>
-          <div class="pad-name">${pad.name}</div>
-        `;
-        btn.addEventListener('click', async () => {
+        btn.setAttribute('role', 'button');
+        btn.setAttribute('aria-pressed', selectedPadIndex === i ? 'true' : 'false');
+        btn.setAttribute('tabindex', '0');
+
+        const padIdxEl = document.createElement('div');
+        padIdxEl.className = 'pad-index';
+        padIdxEl.textContent = `PAD ${String(i + 1).padStart(2, '0')}`;
+
+        const padNameEl = document.createElement('div');
+        padNameEl.className = 'pad-name';
+        padNameEl.textContent = pad.name;
+
+        btn.appendChild(padIdxEl);
+        btn.appendChild(padNameEl);
+
+        const triggerAction = async () => {
           await ensureAudioContextRunning();
           selectPad(i);
           triggerPadAudio(i);
+        };
+
+        btn.addEventListener('click', triggerAction);
+        btn.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            triggerAction();
+          }
         });
+
         padsGrid.appendChild(btn);
       });
     }
 
     function renderSequencerGrid() {
       seqGrid.innerHTML = '';
-      for (let padIdx = 0; padIdx < 16; padIdx++) {
+      for (let padIdx = 0; padIdx < NUM_PADS; padIdx++) {
         const pad = padsState[padIdx];
         const label = document.createElement('div');
         label.className = 'seq-row-label';
-        label.innerText = pad.name;
+        label.textContent = pad.name;
         seqGrid.appendChild(label);
+        
         for (let stepIdx = 0; stepIdx < TOTAL_STEPS; stepIdx++) {
           const stepCell = document.createElement('div');
-          stepCell.className = `seq-step ${sequenceMatrix[padIdx][stepIdx] ? 'active' : ''}`;
+          const isAct = sequenceMatrix[padIdx][stepIdx];
+          stepCell.className = `seq-step ${isAct ? 'active' : ''}`;
           stepCell.dataset.pad = padIdx;
           stepCell.dataset.step = stepIdx;
-          stepCell.addEventListener('click', () => {
+          stepCell.setAttribute('role', 'button');
+          stepCell.setAttribute('aria-label', `Pad ${padIdx + 1} Step ${stepIdx + 1}`);
+          stepCell.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+          stepCell.setAttribute('tabindex', '0');
+
+          const toggleStep = () => {
             sequenceMatrix[padIdx][stepIdx] = !sequenceMatrix[padIdx][stepIdx];
-            stepCell.classList.toggle('active', sequenceMatrix[padIdx][stepIdx]);
+            const activeNow = sequenceMatrix[padIdx][stepIdx];
+            stepCell.classList.toggle('active', activeNow);
+            stepCell.setAttribute('aria-pressed', activeNow ? 'true' : 'false');
+          };
+
+          stepCell.addEventListener('click', toggleStep);
+          stepCell.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleStep();
+            }
           });
+
           seqGrid.appendChild(stepCell);
         }
       }
@@ -869,10 +1080,15 @@
       selectedPadIndex = index;
       targetPadSelect.value = index;
 
-      document.querySelectorAll('.pad-btn').forEach((b, i) => b.classList.toggle('active', i === index));
+      document.querySelectorAll('.pad-btn').forEach((b, i) => {
+        const isSel = i === index;
+        b.classList.toggle('active', isSel);
+        b.setAttribute('aria-pressed', isSel ? 'true' : 'false');
+      });
+
       const pad = padsState[index];
-      currentPadNum.innerText = String(index + 1).padStart(2, '0');
-      currentSoundTitle.innerText = pad.name;
+      currentPadNum.textContent = String(index + 1).padStart(2, '0');
+      currentSoundTitle.textContent = pad.name;
 
       inputs.volume.value = pad.volume;
       inputs.pitch.value = pad.pitch;
@@ -887,13 +1103,13 @@
     }
 
     function updateLabels() {
-      labels.volume.innerText = inputs.volume.value;
-      labels.pitch.innerText = `${inputs.pitch.value} st`;
-      labels.pan.innerText = inputs.pan.value == 0 ? 'C' : (inputs.pan.value < 0 ? `L${Math.abs(inputs.pan.value)}` : `R${inputs.pan.value}`);
-      labels.cutoff.innerText = `${inputs.cutoff.value} Hz`;
-      labels.trimStart.innerText = `${Math.round(inputs.trimStart.value * 100)}%`;
-      labels.trimEnd.innerText = `${Math.round(inputs.trimEnd.value * 100)}%`;
-      labels.cutPoint.innerText = `${Math.round(inputs.cutPoint.value * 100)}%`;
+      labels.volume.textContent = inputs.volume.value;
+      labels.pitch.textContent = `${inputs.pitch.value} st`;
+      labels.pan.textContent = inputs.pan.value == 0 ? 'C' : (inputs.pan.value < 0 ? `L${Math.abs(inputs.pan.value)}` : `R${inputs.pan.value}`);
+      labels.cutoff.textContent = `${inputs.cutoff.value} Hz`;
+      labels.trimStart.textContent = `${Math.round(inputs.trimStart.value * 100)}%`;
+      labels.trimEnd.textContent = `${Math.round(inputs.trimEnd.value * 100)}%`;
+      labels.cutPoint.textContent = `${Math.round(inputs.cutPoint.value * 100)}%`;
 
       const pad = padsState[selectedPadIndex];
       pad.volume = parseFloat(inputs.volume.value);
@@ -973,11 +1189,18 @@
       if (!pad || !pad.audioBuffer) return;
 
       const buffer = pad.audioBuffer;
-      const cutIndex = Math.floor(buffer.length * pad.cutPoint);
-      if (cutIndex <= 0 || cutIndex >= buffer.length) return;
+      const tStart = pad.trimStart || 0;
+      const tEnd = pad.trimEnd || 1;
+      
+      const realStart = Math.floor(buffer.length * tStart);
+      const realEnd = Math.floor(buffer.length * tEnd);
+      const trimmedLen = realEnd - realStart;
+      
+      const cutIndex = realStart + Math.floor(trimmedLen * pad.cutPoint);
+      if (cutIndex <= realStart || cutIndex >= realEnd) return;
 
-      const part1Buffer = sliceBuffer(buffer, 0, cutIndex);
-      const part2Buffer = sliceBuffer(buffer, cutIndex, buffer.length);
+      const part1Buffer = sliceBuffer(buffer, realStart, cutIndex);
+      const part2Buffer = sliceBuffer(buffer, cutIndex, realEnd);
 
       const name1 = `${pad.name}_pt1`;
       const name2 = `${pad.name}_pt2`;
@@ -986,12 +1209,13 @@
       userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, folder: 'Splits', buffer: part2Buffer });
 
       assignSampleToPad({ name: name1, buffer: part1Buffer }, selectedPadIndex);
-      if (selectedPadIndex + 1 < 16) {
+      if (selectedPadIndex + 1 < NUM_PADS) {
         assignSampleToPad({ name: name2, buffer: part2Buffer }, selectedPadIndex + 1);
       }
 
       refreshSoundBankDropdown();
       renderLibraries();
+      showToast('Split sample into 2 pads', 'info');
     });
 
     function sliceToPads(numSlices) {
@@ -1015,13 +1239,14 @@
         userLibrary.push(newSample);
 
         const targetPad = selectedPadIndex + i;
-        if (targetPad < 16) {
+        if (targetPad < NUM_PADS) {
           assignSampleToPad(newSample, targetPad);
         }
       }
 
       refreshSoundBankDropdown();
       renderLibraries();
+      showToast(`Sliced sample into ${numSlices} pads`, 'info');
     }
 
     slice4Btn.addEventListener('click', () => sliceToPads(4));
@@ -1065,7 +1290,12 @@
       source.connect(filter);
       filter.connect(gainNode);
       gainNode.connect(panner);
-      panner.connect(targetCtx.destination);
+
+      if (targetCtx === audioCtx) {
+        panner.connect(masterGain);
+      } else {
+        panner.connect(targetCtx.destination);
+      }
 
       const duration = pad.audioBuffer.duration;
       const startTime = (pad.trimStart || 0) * duration;
@@ -1091,6 +1321,45 @@
       activeVoices = [];
     }
 
+    // Web Audio Lookahead Sequencer Scheduler
+    function nextNote() {
+      const bpm = Math.max(40, Math.min(240, parseFloat(bpmInput.value) || 120));
+      const secondsPerQuarterNote = 60.0 / bpm;
+      const secondsPerStep = secondsPerQuarterNote / 4.0;
+      nextNoteTime += secondsPerStep;
+
+      currentSeqStep++;
+      if (currentSeqStep === TOTAL_STEPS) {
+        currentSeqStep = 0;
+      }
+    }
+
+    function scheduleNote(step, time) {
+      for (let padIdx = 0; padIdx < NUM_PADS; padIdx++) {
+        if (sequenceMatrix[padIdx][step]) {
+          triggerPadAudio(padIdx, audioCtx, time);
+        }
+      }
+
+      const drawDelay = Math.max(0, (time - audioCtx.currentTime) * 1000);
+      setTimeout(() => {
+        if (!isPlayingSeq) return;
+        document.querySelectorAll('.seq-step').forEach(cell => {
+          cell.classList.toggle('current-play', parseInt(cell.dataset.step) === step);
+        });
+      }, drawDelay);
+    }
+
+    function scheduler() {
+      while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
+        scheduleNote(currentSeqStep, nextNoteTime);
+        nextNote();
+      }
+      if (isPlayingSeq) {
+        timerID = setTimeout(scheduler, lookahead);
+      }
+    }
+
     playSeqBtn.addEventListener('click', async () => {
       await ensureAudioContextRunning();
       if (isPlayingSeq) stopSequence(); else startSequence();
@@ -1098,27 +1367,16 @@
 
     function startSequence() {
       isPlayingSeq = true;
-      playSeqBtn.innerText = 'Pause Sequence';
+      playSeqBtn.textContent = 'Pause Sequence';
       currentSeqStep = 0;
-      const runStep = () => {
-        document.querySelectorAll('.seq-step').forEach(cell => {
-          cell.classList.toggle('current-play', parseInt(cell.dataset.step) === currentSeqStep);
-        });
-        for (let padIdx = 0; padIdx < 16; padIdx++) {
-          if (sequenceMatrix[padIdx][currentSeqStep]) triggerPadAudio(padIdx);
-        }
-        currentSeqStep = (currentSeqStep + 1) % TOTAL_STEPS;
-      };
-
-      runStep();
-      const intervalMs = (60 / parseFloat(bpmInput.value) / 4) * 1000;
-      seqIntervalId = setInterval(runStep, intervalMs);
+      nextNoteTime = audioCtx.currentTime + 0.05;
+      scheduler();
     }
 
     function stopSequence() {
       isPlayingSeq = false;
-      playSeqBtn.innerText = 'Play Sequence';
-      clearInterval(seqIntervalId);
+      playSeqBtn.textContent = 'Play Sequence';
+      if (timerID) clearTimeout(timerID);
       stopAllVoices();
       document.querySelectorAll('.seq-step').forEach(cell => cell.classList.remove('current-play'));
     }
@@ -1129,10 +1387,13 @@
       const totalSequenceDuration = secondsPerStep * TOTAL_STEPS + 1.5;
       const sampleRate = 48000;
       const offlineCtx = new OfflineAudioContext(2, Math.ceil(sampleRate * totalSequenceDuration), sampleRate);
+      
       for (let stepIdx = 0; stepIdx < TOTAL_STEPS; stepIdx++) {
         const stepTime = stepIdx * secondsPerStep;
-        for (let padIdx = 0; padIdx < 16; padIdx++) {
-          if (sequenceMatrix[padIdx][stepIdx]) triggerPadAudio(padIdx, offlineCtx, stepTime);
+        for (let padIdx = 0; padIdx < NUM_PADS; padIdx++) {
+          if (sequenceMatrix[padIdx][stepIdx]) {
+            triggerPadAudio(padIdx, offlineCtx, stepTime);
+          }
         }
       }
       return await offlineCtx.startRendering();
@@ -1190,22 +1451,26 @@
     }
 
     function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = url;
       a.download = filename;
       a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
     exportSeqWavBtn.addEventListener('click', async () => {
-      exportSeqWavBtn.innerText = 'Rendering WAV...';
+      exportSeqWavBtn.textContent = 'Rendering WAV...';
       try {
         const renderedBuffer = await renderSequenceToAudioBuffer();
         const wavBlob = audioBufferToWavBlob(renderedBuffer);
         triggerDownload(wavBlob, 'sequence_loop.wav');
+        showToast('Exported sequence WAV', 'info');
       } catch (err) {
         console.error(err);
+        showToast('WAV export failed', 'error');
       } finally {
-        exportSeqWavBtn.innerText = 'Export Sequence WAV';
+        exportSeqWavBtn.textContent = 'Export Sequence WAV';
       }
     });
 
