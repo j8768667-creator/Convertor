@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pulsark Sampler & Sequencer Studio</title>
+  <title>Sampler & Sequencer Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -190,34 +190,52 @@
     }
 
     .sample-list {
-      max-height: 200px;
+      max-height: 250px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       margin-top: 8px;
     }
 
-    .folder-header {
-      font-size: 0.75rem;
-      font-weight: bold;
-      color: #3b82f6;
-      cursor: pointer;
-      padding: 4px;
-      background: rgba(59, 130, 246, 0.1);
+    .folder-group {
+      border: 1px solid var(--border-color);
       border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 4px;
     }
 
-    .folder-contents { margin-left: 10px; display: flex; flex-direction: column; gap: 3px; }
+    .folder-header {
+      font-size: 0.78rem;
+      font-weight: bold;
+      color: #60a5fa;
+      cursor: pointer;
+      padding: 6px 8px;
+      background: rgba(59, 130, 246, 0.15);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+
+    .folder-header:hover { background: rgba(59, 130, 246, 0.25); }
+
+    .folder-contents {
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      background-color: rgba(0, 0, 0, 0.2);
+    }
 
     .sample-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
       background-color: var(--card-bg);
-      padding: 6px 10px;
+      padding: 5px 8px;
       border-radius: 4px;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
     }
 
     .sample-item button { padding: 3px 6px; font-size: 0.7rem; }
@@ -283,13 +301,13 @@
 <body>
 
   <header>
-    <h1>Pulsark Sampler, Sequencer & WAV Trimmer</h1>
+    <h1>Sampler, Sequencer & WAV Trimmer</h1>
     <div class="header-actions">
-      <button id="importPkbankBtn" class="btn btn-secondary">Import .pkbank</button>
+      <button id="importZipBtn" class="btn btn-secondary">Import ZIP Archive / Bank</button>
       <button id="uploadSampleBtn" class="btn btn-secondary">Upload Audio / Video</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
 
-      <input type="file" id="pkbankInput" accept=".pkbank,.zip" multiple>
+      <input type="file" id="zipInput" accept=".zip,.pkbank" multiple>
       <input type="file" id="userSampleInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
     </div>
   </header>
@@ -315,7 +333,7 @@
       <div class="editor-top-bar">
         <div>
           <span style="font-size:0.7rem; color:var(--muted-text); font-weight:bold;">PAD <span id="currentPadNum">01</span></span>
-          <div class="sound-title" id="currentSoundTitle">BD 808</div>
+          <div class="sound-title" id="currentSoundTitle">Empty Pad</div>
         </div>
         <div class="audio-playback-actions">
           <button id="auditionBtn" class="btn btn-green">▶ Play Sample</button>
@@ -373,7 +391,7 @@
 
       <div class="dropdown-group">
         <div class="select-wrapper">
-          <label>Select Sound from Bank</label>
+          <label>Select Sound from Library</label>
           <select id="soundBankSelect"></select>
         </div>
         <div class="select-wrapper">
@@ -386,7 +404,7 @@
     <div class="library-grid">
       <div class="lib-card">
         <h3>
-          Captured / Soundbank Library
+          Imported ZIP Archives & Kits
           <span style="font-size:0.75rem; color:var(--muted-text);" id="factoryCount">0 samples</span>
         </h3>
         <div class="sample-list" id="factorySampleList"></div>
@@ -394,7 +412,7 @@
 
       <div class="lib-card">
         <h3>
-          User Uploaded & Split Library
+          User Uploads & Split Slices
           <span style="font-size:0.75rem; color:var(--muted-text);" id="userCount">0 samples</span>
         </h3>
         <div class="sample-list" id="userSampleList"></div>
@@ -438,8 +456,8 @@
     const waveformCanvas = document.getElementById('waveformCanvas');
     const canvasCtx = waveformCanvas.getContext('2d');
 
-    const importPkbankBtn = document.getElementById('importPkbankBtn');
-    const pkbankInput = document.getElementById('pkbankInput');
+    const importZipBtn = document.getElementById('importZipBtn');
+    const zipInput = document.getElementById('zipInput');
     const uploadSampleBtn = document.getElementById('uploadSampleBtn');
     const userSampleInput = document.getElementById('userSampleInput');
     const padsGrid = document.getElementById('padsGrid');
@@ -496,13 +514,13 @@
       targetPadSelect.appendChild(opt);
     }
 
-    importPkbankBtn.addEventListener('click', () => pkbankInput.click());
+    importZipBtn.addEventListener('click', () => zipInput.click());
     uploadSampleBtn.addEventListener('click', () => userSampleInput.click());
 
-    pkbankInput.addEventListener('change', async (e) => {
+    zipInput.addEventListener('change', async (e) => {
       if (e.target.files.length) {
         for (const file of e.target.files) {
-          await handlePkbankImport(file);
+          await handleZipImport(file);
         }
         e.target.value = '';
       }
@@ -526,11 +544,13 @@
       }
     });
 
-    // Fixed: Folder Hierarchy Support in .pkbank Imports
-    async function handlePkbankImport(file) {
+    // ZIP File Import and Internal Folder Structuring
+    async function handleZipImport(file) {
       await ensureAudioContextRunning();
       try {
         const zip = await JSZip.loadAsync(file);
+        const folderName = file.name.replace(/\.(zip|pkbank)$/i, '');
+        
         const manifestFile = zip.file('manifest.json');
         let manifest = { pads: [] };
 
@@ -539,40 +559,54 @@
             const text = await manifestFile.async('string');
             manifest = JSON.parse(text);
           } catch (err) {
-            console.warn("Manifest syntax warning:", err);
+            console.warn("Manifest parse warning:", err);
           }
         }
 
-        const audioFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.wav'));
-        
-        for (let i = 0; i < audioFiles.length; i++) {
-          const filePath = audioFiles[i];
+        const validExts = ['.wav', '.mp3', '.flac', '.ogg', '.m4a', '.aac', '.mp4', '.mov', '.webm'];
+        const mediaFiles = Object.keys(zip.files).filter(name => {
+          if (zip.files[name].dir) return false;
+          const lower = name.toLowerCase();
+          return validExts.some(ext => lower.endsWith(ext));
+        });
+
+        if (mediaFiles.length === 0) {
+          alert(`No compatible audio files found inside ${file.name}.`);
+          return;
+        }
+
+        for (let i = 0; i < mediaFiles.length; i++) {
+          const filePath = mediaFiles[i];
           const fileData = await zip.file(filePath).async('arraybuffer');
-          const buffer = await audioCtx.decodeAudioData(fileData);
+          
+          let buffer;
+          try {
+            buffer = await audioCtx.decodeAudioData(fileData.slice(0));
+          } catch (e) {
+            console.warn(`Direct decode failed for ${filePath}, skipping...`);
+            continue;
+          }
 
-          const pathParts = filePath.split('/');
-          const fileNameOnly = pathParts.pop().replace(/\.wav$/i, '');
-          const folderPath = pathParts.join('/');
-
+          const fileNameOnly = filePath.split('/').pop().replace(/\.[^/.]+$/, '');
           const padMeta = (manifest && Array.isArray(manifest.pads)) 
             ? manifest.pads.find(p => p && p.audioFile === filePath) 
             : null;
             
-          const name = padMeta ? padMeta.name : fileNameOnly.toUpperCase().replace(/^[0-9]+_/, '');
+          const sampleName = padMeta ? padMeta.name : fileNameOnly.toUpperCase().replace(/^[0-9]+_/, '');
 
-          if (!factoryLibrary.some(s => s.filePath === filePath)) {
-            factoryLibrary.push({ 
-              id: `fact_${Date.now()}_${Math.random()}`, 
-              name, 
-              folder: folderPath || 'Root',
-              filePath, 
-              buffer 
-            });
-          }
+          const newSample = { 
+            id: `zip_${Date.now()}_${Math.random()}`, 
+            name: sampleName, 
+            folder: folderName,
+            filePath, 
+            buffer 
+          };
+
+          factoryLibrary.push(newSample);
 
           const index = padMeta && padMeta.index !== undefined ? padMeta.index : i;
           if (index >= 0 && index < 16) {
-            padsState[index].name = name;
+            padsState[index].name = sampleName;
             padsState[index].audioBuffer = buffer;
             if (padMeta) {
               padsState[index].volume = padMeta.volume ?? 100;
@@ -591,12 +625,11 @@
         renderSequencerGrid();
         selectPad(0);
       } catch (err) {
-        console.error("Failed to extract .pkbank file:", err);
-        alert("Failed to extract bank file.");
+        console.error("Failed to extract ZIP archive:", err);
+        alert("Failed to extract ZIP file. Ensure it is a valid zip archive.");
       }
     }
 
-    // Fixed: Decoder fallback for video files & immediate visualization
     async function handleUserSampleUpload(files) {
       await ensureAudioContextRunning();
       for (const file of files) {
@@ -607,7 +640,6 @@
           try {
             buffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
           } catch(e) {
-            // Fallback video audio extraction via HTMLMediaElement
             buffer = await extractAudioFromMedia(file);
           }
 
@@ -627,7 +659,6 @@
       renderLibraries();
     }
 
-    // Helper for Video Audio Extraction
     function extractAudioFromMedia(file) {
       return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
@@ -650,9 +681,8 @@
       });
     }
 
-    // Fixed: Folder Hierarchy in Select Dropdown
     function refreshSoundBankDropdown() {
-      soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Sound Bank --</option>';
+      soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Library --</option>';
       
       const groupLibraryByFolder = (lib) => {
         return lib.reduce((acc, sample) => {
@@ -677,46 +707,62 @@
       });
 
       if (userLibrary.length > 0) {
-        const userGroup = document.createElement('optgroup');
-        userGroup.label = '📁 User Uploaded & Split Library';
-        userLibrary.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.id;
-          opt.innerText = s.name;
-          userGroup.appendChild(opt);
+        const userFolders = groupLibraryByFolder(userLibrary);
+        Object.keys(userFolders).forEach(folder => {
+          const group = document.createElement('optgroup');
+          group.label = `📁 ${folder}`;
+          userFolders[folder].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.innerText = s.name;
+            group.appendChild(opt);
+          });
+          soundBankSelect.appendChild(group);
         });
-        soundBankSelect.appendChild(userGroup);
       }
     }
 
-    // Fixed: Folder Hierarchy Render in Captured Library Panel
     function renderLibraries() {
       factoryCount.innerText = `${factoryLibrary.length} samples`;
       userCount.innerText = `${userLibrary.length} samples`;
 
-      factorySampleList.innerHTML = '';
-      
-      const factoryFolders = factoryLibrary.reduce((acc, sample) => {
-        const folder = sample.folder || 'Root';
+      renderFolderList(factoryLibrary, factorySampleList);
+      renderFolderList(userLibrary, userSampleList);
+    }
+
+    function renderFolderList(libraryList, targetContainer) {
+      targetContainer.innerHTML = '';
+
+      if (libraryList.length === 0) {
+        targetContainer.innerHTML = '<div style="font-size:0.75rem; color:var(--muted-text); padding:4px;">No samples imported</div>';
+        return;
+      }
+
+      const grouped = libraryList.reduce((acc, sample) => {
+        const folder = sample.folder || 'Uncategorized';
         if (!acc[folder]) acc[folder] = [];
         acc[folder].push(sample);
         return acc;
       }, {});
 
-      Object.keys(factoryFolders).forEach(folder => {
-        const folderContainer = document.createElement('div');
-        const folderHeader = document.createElement('div');
-        folderHeader.className = 'folder-header';
-        folderHeader.innerHTML = `▼ 📁 ${folder} (${factoryFolders[folder].length})`;
-        
-        const folderContents = document.createElement('div');
-        folderContents.className = 'folder-contents';
+      Object.keys(grouped).forEach(folderName => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'folder-group';
 
-        folderHeader.addEventListener('click', () => {
-          folderContents.style.display = folderContents.style.display === 'none' ? 'flex' : 'none';
+        const headerEl = document.createElement('div');
+        headerEl.className = 'folder-header';
+        headerEl.innerHTML = `<span>▼ 📁 ${folderName}</span> <span>(${grouped[folderName].length})</span>`;
+
+        const contentsEl = document.createElement('div');
+        contentsEl.className = 'folder-contents';
+
+        headerEl.addEventListener('click', () => {
+          const isCollapsed = contentsEl.style.display === 'none';
+          contentsEl.style.display = isCollapsed ? 'flex' : 'none';
+          headerEl.querySelector('span').innerText = (isCollapsed ? '▼' : '►') + ` 📁 ${folderName}`;
         });
 
-        factoryFolders[folder].forEach(sample => {
+        grouped[folderName].forEach(sample => {
           const item = document.createElement('div');
           item.className = 'sample-item';
           item.innerHTML = `<span>${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
@@ -724,24 +770,12 @@
             await ensureAudioContextRunning();
             assignSampleToPad(sample, selectedPadIndex);
           });
-          folderContents.appendChild(item);
+          contentsEl.appendChild(item);
         });
 
-        folderContainer.appendChild(folderHeader);
-        folderContainer.appendChild(folderContents);
-        factorySampleList.appendChild(folderContainer);
-      });
-
-      userSampleList.innerHTML = '';
-      userLibrary.forEach(sample => {
-        const item = document.createElement('div');
-        item.className = 'sample-item';
-        item.innerHTML = `<span>${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
-        item.querySelector('button').addEventListener('click', async () => {
-          await ensureAudioContextRunning();
-          assignSampleToPad(sample, selectedPadIndex);
-        });
-        userSampleList.appendChild(item);
+        groupEl.appendChild(headerEl);
+        groupEl.appendChild(contentsEl);
+        targetContainer.appendChild(groupEl);
       });
     }
 
@@ -811,7 +845,6 @@
       inputs.cutPoint.value = pad.cutPoint;
 
       updateLabels();
-      // Fixed: Ensure canvas dimension sync so waveform draws immediately
       setTimeout(drawWaveform, 10);
     }
 
@@ -896,7 +929,6 @@
       canvasCtx.setLineDash([]);
     }
 
-    // Single Cut functionality
     splitSampleBtn.addEventListener('click', async () => {
       await ensureAudioContextRunning();
       const pad = padsState[selectedPadIndex];
@@ -912,8 +944,8 @@
       const name1 = `${pad.name}_pt1`;
       const name2 = `${pad.name}_pt2`;
 
-      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, buffer: part1Buffer });
-      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, buffer: part2Buffer });
+      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, folder: 'Splits', buffer: part1Buffer });
+      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, folder: 'Splits', buffer: part2Buffer });
 
       assignSampleToPad({ name: name1, buffer: part1Buffer }, selectedPadIndex);
       if (selectedPadIndex + 1 < 16) {
@@ -924,7 +956,6 @@
       renderLibraries();
     });
 
-    // Added: Slice to N pads logic
     function sliceToPads(numSlices) {
       const pad = padsState[selectedPadIndex];
       if (!pad || !pad.audioBuffer) return;
@@ -941,7 +972,7 @@
         const slicedBuf = sliceBuffer(buffer, sliceStart, sliceEnd);
         
         const sliceName = `${pad.name}_s${i + 1}`;
-        const newSample = { id: `usr_slice_${Date.now()}_${i}`, name: sliceName, buffer: slicedBuf };
+        const newSample = { id: `usr_slice_${Date.now()}_${i}`, name: sliceName, folder: 'Slices', buffer: slicedBuf };
         
         userLibrary.push(newSample);
 
