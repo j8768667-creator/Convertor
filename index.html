@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Sampler, Sequencer & WAV Trimmer Studio</title>
+  <title>Pulsark Sampler & Sequencer Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -22,20 +21,12 @@
       --step-active: #00e676;
     }
 
-    * {
-      box-sizing: border-box;
-      touch-action: manipulation; /* Prevents double-tap zoom on iOS/iPad */
-      -webkit-tap-highlight-color: transparent;
-    }
-
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background-color: var(--bg-color);
       color: var(--text-color);
       margin: 0;
-      padding: 12px;
-      user-select: none;
-      -webkit-user-select: none;
+      padding: 15px;
     }
 
     header {
@@ -43,102 +34,76 @@
       justify-content: space-between;
       align-items: center;
       max-width: 1280px;
-      margin: 0 auto 12px auto;
+      margin: 0 auto 15px auto;
       border-bottom: 2px solid var(--border-color);
       padding-bottom: 10px;
-      flex-wrap: wrap;
-      gap: 10px;
     }
 
-    h1 { 
-      margin: 0; 
-      font-size: 1.25rem; 
-      color: #fff; 
-    }
-
-    .header-actions { 
-      display: flex; 
-      gap: 8px; 
-      flex-wrap: wrap; 
-    }
+    h1 { margin: 0; font-size: 1.3rem; color: #fff; }
+    .header-actions { display: flex; gap: 8px; }
 
     .container {
       max-width: 1280px;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 1fr;
-      gap: 12px;
+      gap: 15px;
     }
 
+    /* Compact Sequencer Section */
     .sequencer-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 12px;
+      border-radius: 6px;
+      padding: 10px 14px;
     }
 
     .seq-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
-      flex-wrap: wrap;
-      gap: 10px;
+      margin-bottom: 8px;
     }
 
-    .seq-controls { 
-      display: flex; 
-      align-items: center; 
-      gap: 8px; 
-      flex-wrap: wrap; 
-    }
+    .seq-controls { display: flex; align-items: center; gap: 10px; }
 
-    .seq-grid-container { 
-      overflow-x: auto; 
-      -webkit-overflow-scrolling: touch;
+    .seq-grid-container {
+      overflow-x: auto;
     }
 
     .seq-grid {
       display: grid;
-      grid-template-columns: 110px repeat(16, minmax(28px, 1fr));
-      gap: 3px;
+      grid-template-columns: 100px repeat(16, minmax(20px, 1fr));
+      gap: 2px;
       align-items: center;
-      min-width: 600px;
     }
 
     .seq-row-label {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: bold;
       color: var(--muted-text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      padding-right: 4px;
     }
 
     .seq-step {
-      height: 28px; /* Touch friendly on iPad */
+      height: 18px;
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
-      border-radius: 4px;
+      border-radius: 2px;
       cursor: pointer;
     }
 
-    .seq-step.active { 
-      background-color: var(--step-active); 
-      border-color: #00ff84; 
-    }
+    .seq-step.active { background-color: var(--step-active); border-color: #00ff84; }
+    .seq-step.current-play { box-shadow: 0 0 6px #fff; border-color: #fff; }
 
-    .seq-step.current-play { 
-      box-shadow: 0 0 8px #fff; 
-      border-color: #fff; 
-    }
-
+    /* Sound Control & Waveform Panel */
     .sound-editor-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      padding: 14px;
+      padding: 15px;
     }
 
     .editor-top-bar {
@@ -146,72 +111,60 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 12px;
-      flex-wrap: wrap;
-      gap: 10px;
     }
 
-    .sound-title { 
-      font-size: 1.1rem; 
-      font-weight: bold; 
-      color: #fff; 
+    .sound-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #fff;
     }
 
-    .audio-playback-actions { 
-      display: flex; 
-      gap: 8px; 
+    .audio-playback-actions {
+      display: flex;
+      gap: 8px;
     }
 
+    /* WAV Waveform Editor Canvas & Trim Controls */
     .waveform-card {
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 15px;
     }
 
     .waveform-canvas-container {
       position: relative;
       width: 100%;
-      height: 110px;
+      height: 100px;
       background-color: #000;
-      border-radius: 6px;
+      border-radius: 4px;
       overflow: hidden;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
-    canvas { 
-      width: 100%; 
-      height: 100%; 
-      display: block; 
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
 
-    .trim-slider-container { 
-      display: flex; 
-      gap: 12px; 
-      align-items: center; 
-      flex-wrap: wrap;
-    }
-
-    .slicing-panel {
+    .trim-slider-container {
       display: flex;
-      gap: 8px;
+      gap: 15px;
       align-items: center;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid var(--border-color);
-      flex-wrap: wrap;
     }
 
     .controls-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      grid-template-columns: repeat(6, 1fr);
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 15px;
     }
 
-    .control-group { 
-      display: flex; 
-      flex-direction: column; 
+    .control-group {
+      display: flex;
+      flex-direction: column;
     }
 
     .control-group label {
@@ -224,24 +177,21 @@
       font-weight: 600;
     }
 
-    .control-group input[type="range"] { 
-      width: 100%; 
-      height: 24px;
-      accent-color: #3b82f6; 
+    .control-group input[type="range"] {
+      width: 100%;
+      accent-color: #3b82f6;
     }
 
-    .dropdown-group { 
-      display: flex; 
-      gap: 12px; 
-      flex-wrap: wrap;
+    .dropdown-group {
+      display: flex;
+      gap: 12px;
     }
 
-    .select-wrapper { 
-      display: flex; 
-      flex-direction: column; 
-      gap: 4px; 
-      flex: 1; 
-      min-width: 200px;
+    .select-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
     }
 
     .select-wrapper label {
@@ -255,17 +205,16 @@
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
       color: #fff;
-      padding: 8px 10px;
-      border-radius: 6px;
+      padding: 6px 10px;
+      border-radius: 4px;
       outline: none;
-      font-size: 0.85rem;
-      height: 40px;
     }
 
+    /* Library Panels & Collapsible Trees */
     .library-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
     }
 
     .lib-card {
@@ -279,54 +228,39 @@
       margin-top: 0;
       font-size: 0.95rem;
       border-bottom: 1px solid var(--border-color);
-      padding-bottom: 8px;
+      padding-bottom: 6px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-    }
-
-    .folder-group {
-      margin-top: 6px;
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      overflow: hidden;
-      background-color: rgba(0,0,0,0.2);
-    }
-
-    .folder-header {
-      background-color: #1a2234;
-      padding: 8px 10px;
-      font-size: 0.8rem;
-      font-weight: bold;
-      color: #60a5fa;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-    }
-
-    .folder-header:hover {
-      background-color: #232d42;
-    }
-
-    .folder-content {
-      display: none; /* Collapsed by default */
-      flex-direction: column;
-      gap: 4px;
-      padding: 6px;
-    }
-
-    .folder-content.expanded {
-      display: flex;
     }
 
     .sample-list {
-      max-height: 240px;
+      max-height: 220px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      -webkit-overflow-scrolling: touch;
+      gap: 4px;
+      margin-top: 8px;
+    }
+
+    /* Folder Tree UI Components */
+    details.folder-tree {
+      margin-left: 6px;
+      border-left: 2px solid var(--border-color);
+      padding-left: 6px;
+    }
+
+    details.folder-tree > summary {
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: bold;
+      color: #60a5fa;
+      padding: 4px 0;
+      user-select: none;
+    }
+
+    details.folder-tree > summary:hover {
+      color: #93c5fd;
     }
 
     .sample-item {
@@ -334,16 +268,18 @@
       justify-content: space-between;
       align-items: center;
       background-color: var(--card-bg);
-      padding: 6px 10px;
+      padding: 5px 8px;
       border-radius: 4px;
       font-size: 0.8rem;
+      margin-top: 3px;
     }
 
-    .sample-item button { 
-      padding: 4px 8px; 
-      font-size: 0.7rem; 
+    .sample-item button {
+      padding: 3px 6px;
+      font-size: 0.7rem;
     }
 
+    /* Pads Grid */
     .pads-grid {
       display: grid;
       grid-template-columns: repeat(8, 1fr);
@@ -351,16 +287,10 @@
       margin-top: 8px;
     }
 
-    @media (max-width: 768px) {
-      .pads-grid {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-
     .pad-btn {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 8px;
       color: var(--text-color);
       text-align: left;
@@ -368,30 +298,27 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      height: 60px;
+      height: 55px;
       transition: all 0.1s ease;
     }
 
     .pad-btn:hover { border-color: #3b82f6; }
-    .pad-btn.active { border-color: var(--accent-color); box-shadow: 0 0 8px rgba(0,230,118,0.25); }
-    .pad-btn.playing { background-color: #1e293b; transform: scale(0.97); }
+    .pad-btn.active { border-color: var(--accent-color); box-shadow: 0 0 8px rgba(0,230,118,0.2); }
+    .pad-btn.playing { background-color: #1e293b; transform: scale(0.98); }
 
-    .pad-index { font-size: 0.65rem; color: var(--muted-text); font-weight: bold; }
+    .pad-index { font-size: 0.6rem; color: var(--muted-text); font-weight: bold; }
     .pad-name { font-weight: bold; font-size: 0.75rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+    /* UI Buttons */
     .btn {
       background-color: var(--btn-blue);
       color: white;
       border: none;
-      padding: 8px 12px;
-      border-radius: 6px;
+      padding: 6px 12px;
+      border-radius: 4px;
       font-weight: 600;
       font-size: 0.8rem;
       cursor: pointer;
-      min-height: 38px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
       transition: background 0.2s;
     }
 
@@ -407,11 +334,10 @@
       background: var(--card-bg);
       border: 1px solid var(--border-color);
       color: #fff;
-      padding: 6px;
-      border-radius: 6px;
-      width: 60px;
-      font-size: 0.85rem;
-      height: 38px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      width: 50px;
+      font-size: 0.8rem;
     }
 
     input[type="file"] { display: none; }
@@ -420,16 +346,16 @@
 <body>
 
   <header>
-    <h1>Sampler, Sequencer & WAV Trimmer</h1>
+    <h1>Pulsark Sampler, Sequencer & WAV Trimmer</h1>
     <div class="header-actions">
-      <button id="importPkbankBtn" class="btn btn-secondary">Import Bank / JSON (.pbank, .zip, .json)</button>
-      <button id="uploadFilesBtn" class="btn btn-secondary">Upload Audio / Video Files</button>
-      <button id="uploadFolderBtn" class="btn btn-secondary">Upload Folder Hierarchy</button>
+      <button id="importPkbankBtn" class="btn btn-secondary">Import .pkbank</button>
+      <button id="uploadFolderBtn" class="btn btn-secondary">Upload Folder</button>
+      <button id="uploadSampleBtn" class="btn btn-secondary">Upload Files</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
 
-      <input type="file" id="pkbankInput" accept=".pbank,.pkbank,.zip,.json,application/zip,application/json" multiple>
-      <input type="file" id="userFilesInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
+      <input type="file" id="pkbankInput" accept=".pkbank,.zip">
       <input type="file" id="userFolderInput" webkitdirectory directory multiple>
+      <input type="file" id="userSampleInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
     </div>
   </header>
 
@@ -437,19 +363,12 @@
     
     <div class="sequencer-card">
       <div class="seq-header">
-        <h3 style="margin:0; font-size:0.95rem;">Compact Pattern Sequencer</h3>
+        <h3 style="margin:0; font-size:0.9rem;">Compact Pattern Sequencer</h3>
         <div class="seq-controls">
           <label style="font-size:0.75rem; color: var(--muted-text);">
-            Stored Patterns (.json): 
-            <select id="jsonPatternSelect">
-              <option value="">-- Select JSON Pattern --</option>
-            </select>
-          </label>
-          <button id="applyJsonBtn" class="btn btn-secondary">Load JSON Pattern</button>
-          
-          <label style="font-size:0.75rem; color: var(--muted-text); margin-left:6px;">
             BPM: <input type="number" id="bpmInput" value="120" min="40" max="240">
           </label>
+          <button id="clearSeqBtn" class="btn btn-red">Clear Pattern</button>
           <button id="playSeqBtn" class="btn btn-green">Play Sequence</button>
         </div>
       </div>
@@ -465,8 +384,12 @@
           <div class="sound-title" id="currentSoundTitle">BD 808</div>
         </div>
         <div class="audio-playback-actions">
-          <button id="auditionBtn" class="btn btn-green">▶ Play Sample</button>
-          <button id="stopSampleBtn" class="btn btn-red">■ Stop Sample</button>
+          <button id="auditionBtn" class="btn btn-green" style="display:flex; align-items:center; gap:6px;">
+            ▶ Play Sample
+          </button>
+          <button id="stopSampleBtn" class="btn btn-red" style="display:flex; align-items:center; gap:6px;">
+            ■ Stop Sample
+          </button>
         </div>
       </div>
 
@@ -477,35 +400,20 @@
         
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
           <div class="trim-slider-container" style="flex:1;">
-            <div class="control-group" style="flex:1; min-width: 120px;">
+            <div class="control-group" style="flex:1;">
               <label>Trim Start <span id="val-trimStart">0%</span></label>
               <input type="range" id="param-trimStart" min="0" max="1" value="0" step="0.005">
             </div>
-            <div class="control-group" style="flex:1; min-width: 120px;">
+            <div class="control-group" style="flex:1;">
               <label>Trim End <span id="val-trimEnd">100%</span></label>
               <input type="range" id="param-trimEnd" min="0" max="1" value="1" step="0.005">
             </div>
-            <div class="control-group" style="flex:1; min-width: 120px;">
-              <label>Split Cut Cursor <span id="val-cutPoint">50%</span></label>
+            <div class="control-group" style="flex:1;">
+              <label>Split / Cut Point <span id="val-cutPoint">50%</span></label>
               <input type="range" id="param-cutPoint" min="0" max="1" value="0.5" step="0.005">
             </div>
           </div>
-        </div>
-
-        <div class="slicing-panel">
-          <span style="font-size:0.75rem; color:var(--muted-text); font-weight:bold;">SAMPLE SLICING OPTIONS:</span>
-          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split at Cut Line</button>
-          
-          <label style="font-size:0.75rem; color:var(--muted-text); margin-left:8px;">
-            Equal Slices: 
-            <select id="sliceCountSelect" style="height: 38px;">
-              <option value="2">2 Slices</option>
-              <option value="4">4 Slices</option>
-              <option value="8" selected>8 Slices</option>
-              <option value="16">16 Slices</option>
-            </select>
-          </label>
-          <button id="autoSliceBtn" class="btn btn-secondary">Slice & Map to Pads</button>
+          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split Sample at Cut Point</button>
         </div>
       </div>
 
@@ -530,11 +438,11 @@
 
       <div class="dropdown-group">
         <div class="select-wrapper">
-          <label>Select Sound from Bank (Expandable Tree)</label>
+          <label>Select Sound from Bank</label>
           <select id="soundBankSelect"></select>
         </div>
         <div class="select-wrapper">
-          <label>Assign to Target Pad</label>
+          <label>Assign to Pad</label>
           <select id="targetPadSelect"></select>
         </div>
       </div>
@@ -566,24 +474,16 @@
   </div>
 
   <script>
-    // Prevent default double-tap zooming on iOS/iPad safari
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', (event) => {
-      const now = (new Date()).getTime();
-      if (now - lastTouchEnd <= 300) {
-        event.preventDefault();
-      }
-      lastTouchEnd = now;
-    }, false);
-
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
+    // Sample Libraries with path structure
     let factoryLibrary = [];
     let userLibrary = [];
-    let storedJsonStore = {};
-    let activeVoices = [];
-    let expandedFolders = new Set(); // Tracks expanded folders in library UI
 
+    // Active audio voices tracking
+    let activeVoices = [];
+
+    // Pads State (16 Pads)
     let padsState = Array.from({ length: 16 }, (_, i) => ({
       index: i,
       name: `Pad ${i + 1}`,
@@ -599,22 +499,24 @@
 
     let selectedPadIndex = 0;
 
+    // Compact Sequencer State
     const TOTAL_STEPS = 16;
     let sequenceMatrix = Array.from({ length: 16 }, () => Array(TOTAL_STEPS).fill(false));
     let isPlayingSeq = false;
     let currentSeqStep = 0;
     let seqIntervalId = null;
 
+    // Canvas Elements
     const waveformCanvas = document.getElementById('waveformCanvas');
     const canvasCtx = waveformCanvas.getContext('2d');
 
+    // DOM Elements
     const importPkbankBtn = document.getElementById('importPkbankBtn');
     const pkbankInput = document.getElementById('pkbankInput');
-    const uploadFilesBtn = document.getElementById('uploadFilesBtn');
-    const userFilesInput = document.getElementById('userFilesInput');
     const uploadFolderBtn = document.getElementById('uploadFolderBtn');
     const userFolderInput = document.getElementById('userFolderInput');
-
+    const uploadSampleBtn = document.getElementById('uploadSampleBtn');
+    const userSampleInput = document.getElementById('userSampleInput');
     const padsGrid = document.getElementById('padsGrid');
     const targetPadSelect = document.getElementById('targetPadSelect');
     const soundBankSelect = document.getElementById('soundBankSelect');
@@ -623,17 +525,12 @@
     const factoryCount = document.getElementById('factoryCount');
     const userCount = document.getElementById('userCount');
 
-    const jsonPatternSelect = document.getElementById('jsonPatternSelect');
-    const applyJsonBtn = document.getElementById('applyJsonBtn');
-
     const seqGrid = document.getElementById('seqGrid');
     const bpmInput = document.getElementById('bpmInput');
+    const clearSeqBtn = document.getElementById('clearSeqBtn');
     const playSeqBtn = document.getElementById('playSeqBtn');
     const exportSeqWavBtn = document.getElementById('exportSeqWavBtn');
-    
     const splitSampleBtn = document.getElementById('splitSampleBtn');
-    const autoSliceBtn = document.getElementById('autoSliceBtn');
-    const sliceCountSelect = document.getElementById('sliceCountSelect');
 
     const currentPadNum = document.getElementById('currentPadNum');
     const currentSoundTitle = document.getElementById('currentSoundTitle');
@@ -660,12 +557,14 @@
       cutPoint: document.getElementById('val-cutPoint')
     };
 
+    // Audio Context Helper
     async function ensureAudioContextRunning() {
       if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
       }
     }
 
+    // Initialize Pad Selector Dropdown
     for (let i = 0; i < 16; i++) {
       const opt = document.createElement('option');
       opt.value = i;
@@ -674,25 +573,12 @@
     }
 
     importPkbankBtn.addEventListener('click', () => pkbankInput.click());
-    uploadFilesBtn.addEventListener('click', () => userFilesInput.click());
     uploadFolderBtn.addEventListener('click', () => userFolderInput.click());
+    uploadSampleBtn.addEventListener('click', () => userSampleInput.click());
 
     pkbankInput.addEventListener('change', async (e) => {
       if (e.target.files.length) {
-        for (const file of e.target.files) {
-          if (file.name.toLowerCase().endsWith('.json')) {
-            await handleStandaloneJsonImport(file);
-          } else {
-            await handlePkbankImport(file);
-          }
-        }
-        e.target.value = '';
-      }
-    });
-
-    userFilesInput.addEventListener('change', async (e) => {
-      if (e.target.files.length) {
-        await handleUserSampleUpload(e.target.files);
+        await handlePkbankImport(e.target.files[0]);
         e.target.value = '';
       }
     });
@@ -704,92 +590,100 @@
       }
     });
 
-    targetPadSelect.addEventListener('change', (e) => selectPad(parseInt(e.target.value)));
+    userSampleInput.addEventListener('change', async (e) => {
+      if (e.target.files.length) {
+        await handleUserSampleUpload(e.target.files);
+        e.target.value = '';
+      }
+    });
+
+    targetPadSelect.addEventListener('change', (e) => {
+      selectPad(parseInt(e.target.value));
+    });
 
     soundBankSelect.addEventListener('change', async (e) => {
       await ensureAudioContextRunning();
       const allSamples = [...factoryLibrary, ...userLibrary];
       const selectedSample = allSamples.find(s => s.id === e.target.value);
-      if (selectedSample) assignSampleToPad(selectedSample, selectedPadIndex);
+      if (selectedSample) {
+        assignSampleToPad(selectedSample, selectedPadIndex);
+      }
     });
 
-    applyJsonBtn.addEventListener('click', () => {
-      const selectedKey = jsonPatternSelect.value;
-      if (!selectedKey || !storedJsonStore[selectedKey]) {
-        alert("Select a stored JSON pattern first.");
-        return;
-      }
-      applyJsonToSequencer(storedJsonStore[selectedKey]);
+    // Clear Pattern Sequencer Grid
+    clearSeqBtn.addEventListener('click', () => {
+      sequenceMatrix = Array.from({ length: 16 }, () => Array(TOTAL_STEPS).fill(false));
+      renderSequencerGrid();
     });
 
-    async function handleStandaloneJsonImport(file) {
-      try {
-        const text = await file.text();
-        const json = JSON.parse(text);
-        storedJsonStore[file.name] = json;
-        refreshJsonDropdown();
-        jsonPatternSelect.value = file.name;
-        applyJsonToSequencer(json);
-      } catch (err) {
-        alert("Invalid JSON pattern file.");
-      }
-    }
-
+    // PKBank & Zip Import
     async function handlePkbankImport(file) {
       await ensureAudioContextRunning();
       try {
         const zip = await JSZip.loadAsync(file);
-        const zipName = file.name.replace(/\.[^/.]+$/, "");
+        const manifestFile = zip.file('manifest.json');
+        let manifest = { pads: [] };
 
-        const jsonFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.json'));
-        let primaryJsonData = null;
-
-        for (const jsonPath of jsonFiles) {
+        if (manifestFile) {
           try {
-            const jsonText = await zip.file(jsonPath).async('string');
-            const parsedJson = JSON.parse(jsonText);
-            const storeKey = `${zipName} / ${jsonPath}`;
-            storedJsonStore[storeKey] = parsedJson;
-            if (!primaryJsonData) primaryJsonData = parsedJson;
-          } catch (e) {}
+            const text = await manifestFile.async('string');
+            manifest = JSON.parse(text);
+          } catch (err) {
+            console.warn("manifest.json syntax error; falling back to audio extraction:", err);
+          }
         }
 
-        refreshJsonDropdown();
+        // Parse Sequencer Steps from JSON manifest if available
+        if (manifest) {
+          if (Array.isArray(manifest.sequenceMatrix)) {
+            sequenceMatrix = manifest.sequenceMatrix;
+          } else if (Array.isArray(manifest.sequence)) {
+            sequenceMatrix = manifest.sequence;
+          } else if (Array.isArray(manifest.pads)) {
+            manifest.pads.forEach((p, idx) => {
+              if (p && Array.isArray(p.steps) && idx < 16) {
+                sequenceMatrix[idx] = p.steps;
+              }
+            });
+          }
+        }
 
-        const audioFiles = Object.keys(zip.files).filter(name => 
-          /\.(wav|mp3|aac|flac|ogg)$/i.test(name) && !zip.files[name].dir
-        );
+        const audioFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.wav') || name.toLowerCase().endsWith('.mp3'));
 
         for (let i = 0; i < audioFiles.length; i++) {
           const filePath = audioFiles[i];
           const fileData = await zip.file(filePath).async('arraybuffer');
-          const buffer = await audioCtx.decodeAudioData(fileData.slice(0));
+          const buffer = await audioCtx.decodeAudioData(fileData);
 
-          const pathSegments = filePath.split('/');
-          const fileName = pathSegments.pop().replace(/\.[^/.]+$/, '');
-          const folderPath = pathSegments.length > 0 ? `${zipName}/${pathSegments.join('/')}` : zipName;
-
-          const padMeta = (primaryJsonData && Array.isArray(primaryJsonData.pads)) 
-            ? primaryJsonData.pads.find(p => p && p.audioFile === filePath) 
+          const fileNameOnly = filePath.split('/').pop().replace(/\.[^/.]+$/, '');
+          const padMeta = (manifest && Array.isArray(manifest.pads)) 
+            ? manifest.pads.find(p => p && (p.audioFile === filePath || p.file === filePath)) 
             : null;
+          const name = padMeta ? padMeta.name : fileNameOnly;
 
-          const name = padMeta ? padMeta.name : fileName;
-
-          factoryLibrary.push({
-            id: `fact_${Date.now()}_${Math.random()}`,
-            name,
-            folder: folderPath,
-            buffer
-          });
+          if (!factoryLibrary.some(s => s.path === filePath)) {
+            factoryLibrary.push({
+              id: `fact_${Date.now()}_${Math.random()}`,
+              name,
+              path: filePath,
+              buffer
+            });
+          }
 
           const index = padMeta && padMeta.index !== undefined ? padMeta.index : i;
           if (index >= 0 && index < 16) {
             padsState[index].name = name;
             padsState[index].audioBuffer = buffer;
+            if (padMeta) {
+              padsState[index].volume = padMeta.volume ?? 100;
+              padsState[index].pitch = padMeta.pitch ?? 0;
+              padsState[index].pan = padMeta.pan ?? 0;
+              padsState[index].cutoff = padMeta.cutoff ?? 20000;
+              padsState[index].trimStart = padMeta.trimStart ?? 0;
+              padsState[index].trimEnd = padMeta.trimEnd ?? 1;
+            }
           }
         }
-
-        if (primaryJsonData) applyJsonToSequencer(primaryJsonData);
 
         refreshSoundBankDropdown();
         renderLibraries();
@@ -797,175 +691,130 @@
         renderSequencerGrid();
         selectPad(0);
       } catch (err) {
-        alert("Could not load bank archive file.");
+        console.error("Failed to extract .pkbank file:", err);
+        alert("Failed to extract .pkbank file. Ensure it is a valid archive containing audio samples.");
       }
     }
 
-    function applyJsonToSequencer(jsonData) {
-      if (!jsonData) return;
-      if (jsonData.bpm) bpmInput.value = jsonData.bpm;
-
-      // Flexibly find sequence matrix from JSON schema
-      const matrixData = jsonData.sequence || jsonData.pattern || jsonData.matrix || jsonData.steps || jsonData.grid;
-      if (Array.isArray(matrixData)) {
-        for (let p = 0; p < Math.min(16, matrixData.length); p++) {
-          if (Array.isArray(matrixData[p])) {
-            for (let s = 0; s < Math.min(TOTAL_STEPS, matrixData[p].length); s++) {
-              sequenceMatrix[p][s] = Boolean(matrixData[p][s]);
-            }
-          }
-        }
-      }
-
-      if (Array.isArray(jsonData.pads)) {
-        jsonData.pads.forEach((padMeta, i) => {
-          if (i < 16 && padMeta) {
-            if (padMeta.name) padsState[i].name = padMeta.name;
-            if (padMeta.volume !== undefined) padsState[i].volume = padMeta.volume;
-            if (padMeta.pitch !== undefined) padsState[i].pitch = padMeta.pitch;
-            if (padMeta.pan !== undefined) padsState[i].pan = padMeta.pan;
-            if (padMeta.cutoff !== undefined) padsState[i].cutoff = padMeta.cutoff;
-          }
-        });
-      }
-
-      renderSequencerGrid();
-      renderPads();
-      selectPad(selectedPadIndex);
-    }
-
-    function refreshJsonDropdown() {
-      jsonPatternSelect.innerHTML = '<option value="">-- Select JSON Pattern --</option>';
-      Object.keys(storedJsonStore).sort().forEach(key => {
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.innerText = key;
-        jsonPatternSelect.appendChild(opt);
-      });
-    }
-
+    // Handle Uploaded Audio Files & Folders
     async function handleUserSampleUpload(files) {
       await ensureAudioContextRunning();
       for (const file of files) {
         try {
           const arrayBuffer = await file.arrayBuffer();
           const buffer = await audioCtx.decodeAudioData(arrayBuffer);
-          
-          let folder = "Uploaded Files";
-          if (file.webkitRelativePath) {
-            const parts = file.webkitRelativePath.split('/');
-            parts.pop();
-            if (parts.length > 0) folder = parts.join('/');
-          }
-
           const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
-          const name = (isVideo ? '[Vid] ' : '') + file.name.replace(/\.[^/.]+$/, "");
+          const rawName = file.name.replace(/\.[^/.]+$/, "");
+          const name = (isVideo ? '[Vid] ' : '') + rawName;
+          
+          // Use relative path if uploading folder hierarchy
+          const relPath = file.webkitRelativePath || file.name;
 
           const newSample = {
             id: `usr_${Date.now()}_${Math.random()}`,
             name,
-            folder,
+            path: relPath,
             buffer
           };
           userLibrary.push(newSample);
+
+          // Auto-assign uploaded sample to active pad
           assignSampleToPad(newSample, selectedPadIndex);
-        } catch (err) {}
+        } catch (err) {
+          console.error("Could not decode audio from file:", file.name, err);
+        }
       }
 
       refreshSoundBankDropdown();
       renderLibraries();
     }
 
-    function refreshSoundBankDropdown() {
-      soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Sound Bank --</option>';
+    // Hierarchical Folder Tree Builder
+    function buildTreeFromPaths(sampleList) {
+      const root = { name: 'root', folders: {}, files: [] };
+      sampleList.forEach(sample => {
+        const parts = sample.path.split('/').filter(Boolean);
+        if (parts.length === 1) {
+          root.files.push(sample);
+        } else {
+          let current = root;
+          for (let i = 0; i < parts.length - 1; i++) {
+            const folderName = parts[i];
+            if (!current.folders[folderName]) {
+              current.folders[folderName] = { name: folderName, folders: {}, files: [] };
+            }
+            current = current.folders[folderName];
+          }
+          current.files.push(sample);
+        }
+      });
+      return root;
+    }
 
-      const buildOrderedTree = (lib, labelPrefix) => {
-        const groups = {};
-        lib.forEach(s => {
-          const folder = s.folder || labelPrefix;
-          if (!groups[folder]) groups[folder] = [];
-          groups[folder].push(s);
+    // Render Folder Tree UI recursively
+    function renderFolderNode(node, container) {
+      Object.keys(node.folders).forEach(folderName => {
+        const folder = node.folders[folderName];
+        const details = document.createElement('details');
+        details.className = 'folder-tree';
+        details.open = true;
+
+        const summary = document.createElement('summary');
+        summary.innerText = `📁 ${folder.name}`;
+        details.appendChild(summary);
+
+        renderFolderNode(folder, details);
+        container.appendChild(details);
+      });
+
+      node.files.forEach(sample => {
+        const item = document.createElement('div');
+        item.className = 'sample-item';
+        item.innerHTML = `
+          <span>🔊 ${sample.name}</span>
+          <button class="btn btn-secondary">Load to Pad</button>
+        `;
+        item.querySelector('button').addEventListener('click', async () => {
+          await ensureAudioContextRunning();
+          assignSampleToPad(sample, selectedPadIndex);
         });
-
-        Object.keys(groups).sort().forEach(folderName => {
-          const group = document.createElement('optgroup');
-          group.label = `📁 ${folderName}`;
-          groups[folderName].sort((a,b) => a.name.localeCompare(b.name)).forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.id;
-            opt.innerText = s.name;
-            group.appendChild(opt);
-          });
-          soundBankSelect.appendChild(group);
-        });
-      };
-
-      buildOrderedTree(factoryLibrary, "Factory Library");
-      buildOrderedTree(userLibrary, "User Uploads");
+        container.appendChild(item);
+      });
     }
 
     function renderLibraries() {
       factoryCount.innerText = `${factoryLibrary.length} samples`;
       userCount.innerText = `${userLibrary.length} samples`;
 
-      const renderList = (lib, container) => {
-        container.innerHTML = '';
-        const folders = {};
-        lib.forEach(sample => {
-          const folder = sample.folder || 'Root Folder';
-          if (!folders[folder]) folders[folder] = [];
-          folders[folder].push(sample);
-        });
+      factorySampleList.innerHTML = '';
+      const factoryTree = buildTreeFromPaths(factoryLibrary);
+      renderFolderNode(factoryTree, factorySampleList);
 
-        Object.keys(folders).sort().forEach(folderName => {
-          const folderDiv = document.createElement('div');
-          folderDiv.className = 'folder-group';
+      userSampleList.innerHTML = '';
+      const userTree = buildTreeFromPaths(userLibrary);
+      renderFolderNode(userTree, userSampleList);
+    }
 
-          const isExpanded = expandedFolders.has(folderName);
+    // Populate Sound Bank Dropdown with Folder Groups
+    function refreshSoundBankDropdown() {
+      soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Sound Bank --</option>';
+      
+      const populateGrouped = (library, groupTitle) => {
+        if (!library.length) return;
+        const mainGroup = document.createElement('optgroup');
+        mainGroup.label = `--- ${groupTitle} ---`;
+        soundBankSelect.appendChild(mainGroup);
 
-          const headerDiv = document.createElement('div');
-          headerDiv.className = 'folder-header';
-          headerDiv.innerHTML = `
-            <span>${isExpanded ? '▼' : '►'} 📁 ${folderName}</span>
-            <span>(${folders[folderName].length} samples)</span>
-          `;
-          
-          const contentDiv = document.createElement('div');
-          contentDiv.className = `folder-content ${isExpanded ? 'expanded' : ''}`;
-
-          headerDiv.addEventListener('click', () => {
-            if (expandedFolders.has(folderName)) {
-              expandedFolders.delete(folderName);
-              contentDiv.classList.remove('expanded');
-              headerDiv.querySelector('span').innerText = `► 📁 ${folderName}`;
-            } else {
-              expandedFolders.add(folderName);
-              contentDiv.classList.add('expanded');
-              headerDiv.querySelector('span').innerText = `▼ 📁 ${folderName}`;
-            }
-          });
-
-          folderDiv.appendChild(headerDiv);
-
-          folders[folderName].sort((a,b) => a.name.localeCompare(b.name)).forEach(sample => {
-            const item = document.createElement('div');
-            item.className = 'sample-item';
-            item.innerHTML = `<span>${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
-            item.querySelector('button').addEventListener('click', async (e) => {
-              e.stopPropagation();
-              await ensureAudioContextRunning();
-              assignSampleToPad(sample, selectedPadIndex);
-            });
-            contentDiv.appendChild(item);
-          });
-
-          folderDiv.appendChild(contentDiv);
-          container.appendChild(folderDiv);
+        library.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.innerText = `${s.path}`;
+          soundBankSelect.appendChild(opt);
         });
       };
 
-      renderList(factoryLibrary, factorySampleList);
-      renderList(userLibrary, userSampleList);
+      populateGrouped(factoryLibrary, 'Factory / PKBank Library');
+      populateGrouped(userLibrary, 'User Uploaded / Split Library');
     }
 
     function assignSampleToPad(sample, padIdx) {
@@ -1025,6 +874,7 @@
       document.querySelectorAll('.pad-btn').forEach((b, i) => {
         b.classList.toggle('active', i === index);
       });
+
       const pad = padsState[index];
       currentPadNum.innerText = String(index + 1).padStart(2, '0');
       currentSoundTitle.innerText = pad.name;
@@ -1064,6 +914,7 @@
 
     Object.values(inputs).forEach(input => input.addEventListener('input', updateLabels));
 
+    // Render Canvas Waveform
     function drawWaveform() {
       const pad = padsState[selectedPadIndex];
       const width = waveformCanvas.width = waveformCanvas.clientWidth;
@@ -1081,6 +932,7 @@
       const step = Math.ceil(data.length / width);
       const amp = height / 2;
 
+      // Draw Base Waveform
       canvasCtx.beginPath();
       canvasCtx.strokeStyle = '#3b82f6';
       canvasCtx.lineWidth = 1;
@@ -1098,6 +950,7 @@
       }
       canvasCtx.stroke();
 
+      // Draw Trim Mask
       const trimStartPx = pad.trimStart * width;
       const trimEndPx = pad.trimEnd * width;
 
@@ -1105,6 +958,7 @@
       canvasCtx.fillRect(0, 0, trimStartPx, height);
       canvasCtx.fillRect(trimEndPx, 0, width - trimEndPx, height);
 
+      // Draw Trim Handles
       canvasCtx.strokeStyle = '#00e676';
       canvasCtx.lineWidth = 2;
       canvasCtx.beginPath();
@@ -1112,6 +966,7 @@
       canvasCtx.moveTo(trimEndPx, 0); canvasCtx.lineTo(trimEndPx, height);
       canvasCtx.stroke();
 
+      // Draw Split Cut Line
       const cutPx = pad.cutPoint * width;
       canvasCtx.strokeStyle = '#ef4444';
       canvasCtx.lineWidth = 2;
@@ -1122,6 +977,7 @@
       canvasCtx.setLineDash([]);
     }
 
+    // WAV Split Functionality
     splitSampleBtn.addEventListener('click', async () => {
       await ensureAudioContextRunning();
       const pad = padsState[selectedPadIndex];
@@ -1129,13 +985,17 @@
 
       const buffer = pad.audioBuffer;
       const cutIndex = Math.floor(buffer.length * pad.cutPoint);
+
       if (cutIndex <= 0 || cutIndex >= buffer.length) return;
 
-      const part1Buffer = audioCtx.createBuffer(buffer.numberOfChannels, cutIndex, buffer.sampleRate);
+      // Slice Part 1
+      const part1Length = cutIndex;
+      const part1Buffer = audioCtx.createBuffer(buffer.numberOfChannels, part1Length, buffer.sampleRate);
       for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-        part1Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(0, cutIndex));
+        part1Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(0, part1Length));
       }
 
+      // Slice Part 2
       const part2Length = buffer.length - cutIndex;
       const part2Buffer = audioCtx.createBuffer(buffer.numberOfChannels, part2Length, buffer.sampleRate);
       for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
@@ -1144,44 +1004,12 @@
 
       const name1 = `${pad.name}_pt1`;
       const name2 = `${pad.name}_pt2`;
-      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, folder: 'Slices', buffer: part1Buffer });
-      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, folder: 'Slices', buffer: part2Buffer });
+      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, path: name1, buffer: part1Buffer });
+      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, path: name2, buffer: part2Buffer });
       assignSampleToPad({ name: name1, buffer: part1Buffer }, selectedPadIndex);
 
       refreshSoundBankDropdown();
       renderLibraries();
-    });
-
-    autoSliceBtn.addEventListener('click', async () => {
-      await ensureAudioContextRunning();
-      const pad = padsState[selectedPadIndex];
-      if (!pad || !pad.audioBuffer) return;
-
-      const numSlices = parseInt(sliceCountSelect.value);
-      const buffer = pad.audioBuffer;
-      const sliceLength = Math.floor(buffer.length / numSlices);
-
-      for (let i = 0; i < numSlices; i++) {
-        const start = i * sliceLength;
-        const sliceBuf = audioCtx.createBuffer(buffer.numberOfChannels, sliceLength, buffer.sampleRate);
-        for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-          sliceBuf.getChannelData(ch).set(buffer.getChannelData(ch).subarray(start, start + sliceLength));
-        }
-
-        const sliceName = `${pad.name}_slice_${i + 1}`;
-        userLibrary.push({ id: `usr_slice_${Date.now()}_${i}`, name: sliceName, folder: `${pad.name}_Slices`, buffer: sliceBuf });
-        
-        if (i < 16) {
-          padsState[i].name = sliceName;
-          padsState[i].audioBuffer = sliceBuf;
-        }
-      }
-
-      refreshSoundBankDropdown();
-      renderLibraries();
-      renderPads();
-      renderSequencerGrid();
-      selectPad(0);
     });
 
     auditionBtn.addEventListener('click', async () => {
@@ -1190,7 +1018,9 @@
       triggerPadAudio(selectedPadIndex);
     });
 
-    stopSampleBtn.addEventListener('click', () => stopAllVoices());
+    stopSampleBtn.addEventListener('click', () => {
+      stopAllVoices();
+    });
 
     function triggerPadAudio(index, targetCtx = audioCtx, targetTime = 0) {
       const pad = padsState[index];
@@ -1244,6 +1074,7 @@
       activeVoices = [];
     }
 
+    // Step Sequencer Playback
     playSeqBtn.addEventListener('click', async () => {
       await ensureAudioContextRunning();
       if (isPlayingSeq) {
@@ -1257,10 +1088,12 @@
       isPlayingSeq = true;
       playSeqBtn.innerText = 'Pause Sequence';
       currentSeqStep = 0;
+
       const runStep = () => {
         document.querySelectorAll('.seq-step').forEach(cell => {
           cell.classList.toggle('current-play', parseInt(cell.dataset.step) === currentSeqStep);
         });
+
         for (let padIdx = 0; padIdx < 16; padIdx++) {
           if (sequenceMatrix[padIdx][currentSeqStep]) {
             triggerPadAudio(padIdx);
@@ -1283,6 +1116,7 @@
       document.querySelectorAll('.seq-step').forEach(cell => cell.classList.remove('current-play'));
     }
 
+    // Export WAV Sequence Loop
     async function renderSequenceToAudioBuffer() {
       const bpm = parseFloat(bpmInput.value) || 120;
       const secondsPerStep = 60 / bpm / 4;
@@ -1325,6 +1159,7 @@
       const bufferLength = 44 + samples.length * bytesPerSample;
       const arrayBuffer = new ArrayBuffer(bufferLength);
       const view = new DataView(arrayBuffer);
+
       const writeString = (offset, str) => {
         for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
       };
@@ -1372,6 +1207,7 @@
       }
     });
 
+    // Initial Setup
     renderPads();
     renderSequencerGrid();
     renderLibraries();
