@@ -27,6 +27,18 @@
       --step-active: #00e676;
     }
 
+    * { box-sizing: border-box; }
+
+    html, body {
+      max-width: 100%;
+      overflow-x: hidden;
+      /* Prevents the double-tap-to-zoom gesture that was firing on
+         buttons/pads (mobile browsers zoom on double-tap by default
+         unless an element opts out). Pinch-to-zoom still works, so this
+         doesn't hurt accessibility the way user-scalable=no would. */
+      touch-action: manipulation;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background-color: var(--bg-color);
@@ -37,8 +49,10 @@
 
     header {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
+      gap: 10px;
       max-width: 1280px;
       margin: 0 auto 15px auto;
       border-bottom: 2px solid var(--border-color);
@@ -109,13 +123,27 @@
 
     .editor-top-bar {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
       margin-bottom: 12px;
     }
 
-    .sound-title { font-size: 1.1rem; font-weight: bold; color: #fff; }
-    .audio-playback-actions { display: flex; gap: 8px; }
+    /* Flex items default to min-width:auto, which lets long unbroken
+       text (a common shape for bulk-imported sample-pack filenames)
+       push the item — and the whole page — wider than the viewport
+       instead of wrapping. min-width:0 lets it shrink and wrap normally. */
+    .editor-top-bar > div:first-child { min-width: 0; flex: 1 1 auto; }
+
+    .sound-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #fff;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .audio-playback-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 
     .waveform-card {
       background-color: var(--card-bg);
