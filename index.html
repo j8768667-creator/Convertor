@@ -535,11 +535,17 @@
     uploadSampleBtn.addEventListener('click', () => userSampleInput.click());
 
     pkbankInput.addEventListener('change', async (e) => {
-      if (e.target.files.length) await handlePkbankImport(e.target.files[0]);
+      if (e.target.files.length) {
+        await handlePkbankImport(e.target.files[0]);
+        e.target.value = ''; // Reset input
+      }
     });
 
     userSampleInput.addEventListener('change', async (e) => {
-      if (e.target.files.length) await handleUserSampleUpload(e.target.files);
+      if (e.target.files.length) {
+        await handleUserSampleUpload(e.target.files);
+        e.target.value = ''; // Reset input
+      }
     });
 
     targetPadSelect.addEventListener('change', (e) => {
@@ -557,48 +563,62 @@
 
     async function handlePkbankImport(file) {
       await ensureAudioContextRunning();
-      const zip = await JSZip.loadAsync(file);
-      const manifestFile = zip.file('manifest.json');
-      let manifest = { pads: [] };
+      try {
+        const zip = await JSZip.loadAsync(file);
+        const manifestFile = zip.file('manifest.json');
+        let manifest = { pads: [] };
 
-      if (manifestFile) {
-        const text = await manifestFile.async('string');
-        manifest = JSON.parse(text);
-      }
-
-      const audioFiles = Object.keys(zip.files).filter(name => name.endsWith('.wav'));
-
-      for (const filePath of audioFiles) {
-        const fileData = await zip.file(filePath).async('arraybuffer');
-        const buffer = await audioCtx.decodeAudioData(fileData);
-
-        const padMeta = manifest.pads ? manifest.pads.find(p => p.audioFile === filePath) : null;
-        const name = padMeta ? padMeta.name : filePath.split('/').pop().replace('.wav', '');
-
-        if (!factoryLibrary.some(s => s.name === name)) {
-          factoryLibrary.push({ id: `fact_${Date.now()}_${Math.random()}`, name, buffer });
-        }
-
-        const index = padMeta ? padMeta.index : factoryLibrary.length - 1;
-        if (index >= 0 && index < 16) {
-          padsState[index].name = name;
-          padsState[index].audioBuffer = buffer;
-          if (padMeta) {
-            padsState[index].volume = padMeta.volume ?? 100;
-            padsState[index].pitch = padMeta.pitch ?? 0;
-            padsState[index].pan = padMeta.pan ?? 0;
-            padsState[index].cutoff = padMeta.cutoff ?? 20000;
-            padsState[index].trimStart = padMeta.trimStart ?? 0;
-            padsState[index].trimEnd = padMeta.trimEnd ?? 1;
+        if (manifestFile) {
+          try {
+            const text = await manifestFile.async('string');
+            manifest = JSON.parse(text);
+          } catch (err) {
+            console.warn("manifest.json syntax error; falling back to direct WAV extraction:", err);
           }
         }
-      }
 
-      refreshSoundBankDropdown();
-      renderLibraries();
-      renderPads();
-      renderSequencerGrid();
-      selectPad(0);
+        const audioFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.wav'));
+
+        for (let i = 0; i < audioFiles.length; i++) {
+          const filePath = audioFiles[i];
+          const fileData = await zip.file(filePath).async('arraybuffer');
+          const buffer = await audioCtx.decodeAudioData(fileData);
+
+          const fileNameOnly = filePath.split('/').pop().replace(/\.wav$/i, '');
+          const padMeta = (manifest && Array.isArray(manifest.pads)) 
+            ? manifest.pads.find(p => p && p.audioFile === filePath) 
+            : null;
+
+          const name = padMeta ? padMeta.name : fileNameOnly.toUpperCase().replace(/^[0-9]+_/, '');
+
+          if (!factoryLibrary.some(s => s.name === name)) {
+            factoryLibrary.push({ id: `fact_${Date.now()}_${Math.random()}`, name, buffer });
+          }
+
+          const index = padMeta && padMeta.index !== undefined ? padMeta.index : i;
+          if (index >= 0 && index < 16) {
+            padsState[index].name = name;
+            padsState[index].audioBuffer = buffer;
+            if (padMeta) {
+              padsState[index].volume = padMeta.volume ?? 100;
+              padsState[index].pitch = padMeta.pitch ?? 0;
+              padsState[index].pan = padMeta.pan ?? 0;
+              padsState[index].cutoff = padMeta.cutoff ?? 20000;
+              padsState[index].trimStart = padMeta.trimStart ?? 0;
+              padsState[index].trimEnd = padMeta.trimEnd ?? 1;
+            }
+          }
+        }
+
+        refreshSoundBankDropdown();
+        renderLibraries();
+        renderPads();
+        renderSequencerGrid();
+        selectPad(0);
+      } catch (err) {
+        console.error("Failed to extract .pkbank file:", err);
+        alert("Failed to extract .pkbank file. Ensure it is a valid zip archive containing audio samples.");
+      }
     }
 
     async function handleUserSampleUpload(files) {
