@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Sampler & Sequencer Studio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sampler, Sequencer & WAV Trimmer Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -21,12 +22,20 @@
       --step-active: #00e676;
     }
 
+    * {
+      box-sizing: border-box;
+      touch-action: manipulation; /* Prevents double-tap zoom on iOS/iPad */
+      -webkit-tap-highlight-color: transparent;
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background-color: var(--bg-color);
       color: var(--text-color);
       margin: 0;
-      padding: 15px;
+      padding: 12px;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     header {
@@ -34,73 +43,102 @@
       justify-content: space-between;
       align-items: center;
       max-width: 1280px;
-      margin: 0 auto 15px auto;
+      margin: 0 auto 12px auto;
       border-bottom: 2px solid var(--border-color);
       padding-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
-    h1 { margin: 0; font-size: 1.3rem; color: #fff; }
-    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    h1 { 
+      margin: 0; 
+      font-size: 1.25rem; 
+      color: #fff; 
+    }
+
+    .header-actions { 
+      display: flex; 
+      gap: 8px; 
+      flex-wrap: wrap; 
+    }
 
     .container {
       max-width: 1280px;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 1fr;
-      gap: 15px;
+      gap: 12px;
     }
 
     .sequencer-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 10px 14px;
+      border-radius: 8px;
+      padding: 12px;
     }
 
     .seq-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
       flex-wrap: wrap;
       gap: 10px;
     }
 
-    .seq-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .seq-grid-container { overflow-x: auto; }
+    .seq-controls { 
+      display: flex; 
+      align-items: center; 
+      gap: 8px; 
+      flex-wrap: wrap; 
+    }
+
+    .seq-grid-container { 
+      overflow-x: auto; 
+      -webkit-overflow-scrolling: touch;
+    }
 
     .seq-grid {
       display: grid;
-      grid-template-columns: 100px repeat(16, minmax(20px, 1fr));
-      gap: 2px;
+      grid-template-columns: 110px repeat(16, minmax(28px, 1fr));
+      gap: 3px;
       align-items: center;
+      min-width: 600px;
     }
 
     .seq-row-label {
-      font-size: 0.7rem;
+      font-size: 0.75rem;
       font-weight: bold;
       color: var(--muted-text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      padding-right: 4px;
     }
 
     .seq-step {
-      height: 18px;
+      height: 28px; /* Touch friendly on iPad */
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
-      border-radius: 2px;
+      border-radius: 4px;
       cursor: pointer;
     }
 
-    .seq-step.active { background-color: var(--step-active); border-color: #00ff84; }
-    .seq-step.current-play { box-shadow: 0 0 6px #fff; border-color: #fff; }
+    .seq-step.active { 
+      background-color: var(--step-active); 
+      border-color: #00ff84; 
+    }
+
+    .seq-step.current-play { 
+      box-shadow: 0 0 8px #fff; 
+      border-color: #fff; 
+    }
 
     .sound-editor-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      padding: 15px;
+      padding: 14px;
     }
 
     .editor-top-bar {
@@ -108,32 +146,51 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
-    .sound-title { font-size: 1.1rem; font-weight: bold; color: #fff; }
-    .audio-playback-actions { display: flex; gap: 8px; }
+    .sound-title { 
+      font-size: 1.1rem; 
+      font-weight: bold; 
+      color: #fff; 
+    }
+
+    .audio-playback-actions { 
+      display: flex; 
+      gap: 8px; 
+    }
 
     .waveform-card {
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 12px;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
     }
 
     .waveform-canvas-container {
       position: relative;
       width: 100%;
-      height: 100px;
+      height: 110px;
       background-color: #000;
-      border-radius: 4px;
+      border-radius: 6px;
       overflow: hidden;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
-    canvas { width: 100%; height: 100%; display: block; }
+    canvas { 
+      width: 100%; 
+      height: 100%; 
+      display: block; 
+    }
 
-    .trim-slider-container { display: flex; gap: 15px; align-items: center; }
+    .trim-slider-container { 
+      display: flex; 
+      gap: 12px; 
+      align-items: center; 
+      flex-wrap: wrap;
+    }
 
     .slicing-panel {
       display: flex;
@@ -147,12 +204,15 @@
 
     .controls-grid {
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 10px;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
     }
 
-    .control-group { display: flex; flex-direction: column; }
+    .control-group { 
+      display: flex; 
+      flex-direction: column; 
+    }
 
     .control-group label {
       display: flex;
@@ -164,11 +224,25 @@
       font-weight: 600;
     }
 
-    .control-group input[type="range"] { width: 100%; accent-color: #3b82f6; }
+    .control-group input[type="range"] { 
+      width: 100%; 
+      height: 24px;
+      accent-color: #3b82f6; 
+    }
 
-    .dropdown-group { display: flex; gap: 12px; }
+    .dropdown-group { 
+      display: flex; 
+      gap: 12px; 
+      flex-wrap: wrap;
+    }
 
-    .select-wrapper { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .select-wrapper { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 4px; 
+      flex: 1; 
+      min-width: 200px;
+    }
 
     .select-wrapper label {
       font-size: 0.7rem;
@@ -181,15 +255,17 @@
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
       color: #fff;
-      padding: 6px 10px;
-      border-radius: 4px;
+      padding: 8px 10px;
+      border-radius: 6px;
       outline: none;
+      font-size: 0.85rem;
+      height: 40px;
     }
 
     .library-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 15px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 12px;
     }
 
     .lib-card {
@@ -203,36 +279,54 @@
       margin-top: 0;
       font-size: 0.95rem;
       border-bottom: 1px solid var(--border-color);
-      padding-bottom: 6px;
+      padding-bottom: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
     .folder-group {
-      margin-top: 8px;
-      border: 1px solid #2d3748;
-      border-radius: 4px;
+      margin-top: 6px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
       overflow: hidden;
+      background-color: rgba(0,0,0,0.2);
     }
 
     .folder-header {
       background-color: #1a2234;
-      padding: 5px 8px;
-      font-size: 0.75rem;
+      padding: 8px 10px;
+      font-size: 0.8rem;
       font-weight: bold;
       color: #60a5fa;
       display: flex;
       justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .folder-header:hover {
+      background-color: #232d42;
+    }
+
+    .folder-content {
+      display: none; /* Collapsed by default */
+      flex-direction: column;
+      gap: 4px;
+      padding: 6px;
+    }
+
+    .folder-content.expanded {
+      display: flex;
     }
 
     .sample-list {
-      max-height: 200px;
+      max-height: 240px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      padding: 4px;
+      gap: 6px;
+      -webkit-overflow-scrolling: touch;
     }
 
     .sample-item {
@@ -240,12 +334,15 @@
       justify-content: space-between;
       align-items: center;
       background-color: var(--card-bg);
-      padding: 5px 8px;
-      border-radius: 3px;
-      font-size: 0.75rem;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 0.8rem;
     }
 
-    .sample-item button { padding: 2px 6px; font-size: 0.65rem; }
+    .sample-item button { 
+      padding: 4px 8px; 
+      font-size: 0.7rem; 
+    }
 
     .pads-grid {
       display: grid;
@@ -254,10 +351,16 @@
       margin-top: 8px;
     }
 
+    @media (max-width: 768px) {
+      .pads-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
     .pad-btn {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
-      border-radius: 6px;
+      border-radius: 8px;
       padding: 8px;
       color: var(--text-color);
       text-align: left;
@@ -265,26 +368,30 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      height: 55px;
+      height: 60px;
       transition: all 0.1s ease;
     }
 
     .pad-btn:hover { border-color: #3b82f6; }
-    .pad-btn.active { border-color: var(--accent-color); box-shadow: 0 0 8px rgba(0,230,118,0.2); }
-    .pad-btn.playing { background-color: #1e293b; transform: scale(0.98); }
+    .pad-btn.active { border-color: var(--accent-color); box-shadow: 0 0 8px rgba(0,230,118,0.25); }
+    .pad-btn.playing { background-color: #1e293b; transform: scale(0.97); }
 
-    .pad-index { font-size: 0.6rem; color: var(--muted-text); font-weight: bold; }
+    .pad-index { font-size: 0.65rem; color: var(--muted-text); font-weight: bold; }
     .pad-name { font-weight: bold; font-size: 0.75rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .btn {
       background-color: var(--btn-blue);
       color: white;
       border: none;
-      padding: 6px 12px;
-      border-radius: 4px;
+      padding: 8px 12px;
+      border-radius: 6px;
       font-weight: 600;
       font-size: 0.8rem;
       cursor: pointer;
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       transition: background 0.2s;
     }
 
@@ -300,10 +407,11 @@
       background: var(--card-bg);
       border: 1px solid var(--border-color);
       color: #fff;
-      padding: 4px 6px;
-      border-radius: 4px;
-      width: 50px;
-      font-size: 0.8rem;
+      padding: 6px;
+      border-radius: 6px;
+      width: 60px;
+      font-size: 0.85rem;
+      height: 38px;
     }
 
     input[type="file"] { display: none; }
@@ -312,11 +420,11 @@
 <body>
 
   <header>
-    <h1>Pulsark Sampler, Sequencer & WAV Trimmer</h1>
+    <h1>Sampler, Sequencer & WAV Trimmer</h1>
     <div class="header-actions">
-      <button id="importPkbankBtn" class="btn btn-secondary">Import Bank (.pbank / .zip / .json)</button>
+      <button id="importPkbankBtn" class="btn btn-secondary">Import Bank / JSON (.pbank, .zip, .json)</button>
       <button id="uploadFilesBtn" class="btn btn-secondary">Upload Audio / Video Files</button>
-      <button id="uploadFolderBtn" class="btn btn-secondary">Upload Folder Structure</button>
+      <button id="uploadFolderBtn" class="btn btn-secondary">Upload Folder Hierarchy</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
 
       <input type="file" id="pkbankInput" accept=".pbank,.pkbank,.zip,.json,application/zip,application/json" multiple>
@@ -329,7 +437,7 @@
     
     <div class="sequencer-card">
       <div class="seq-header">
-        <h3 style="margin:0; font-size:0.9rem;">Compact Pattern Sequencer</h3>
+        <h3 style="margin:0; font-size:0.95rem;">Compact Pattern Sequencer</h3>
         <div class="seq-controls">
           <label style="font-size:0.75rem; color: var(--muted-text);">
             Stored Patterns (.json): 
@@ -339,7 +447,7 @@
           </label>
           <button id="applyJsonBtn" class="btn btn-secondary">Load JSON Pattern</button>
           
-          <label style="font-size:0.75rem; color: var(--muted-text); margin-left:10px;">
+          <label style="font-size:0.75rem; color: var(--muted-text); margin-left:6px;">
             BPM: <input type="number" id="bpmInput" value="120" min="40" max="240">
           </label>
           <button id="playSeqBtn" class="btn btn-green">Play Sequence</button>
@@ -357,12 +465,8 @@
           <div class="sound-title" id="currentSoundTitle">BD 808</div>
         </div>
         <div class="audio-playback-actions">
-          <button id="auditionBtn" class="btn btn-green" style="display:flex; align-items:center; gap:6px;">
-            ▶ Play Sample
-          </button>
-          <button id="stopSampleBtn" class="btn btn-red" style="display:flex; align-items:center; gap:6px;">
-            ■ Stop Sample
-          </button>
+          <button id="auditionBtn" class="btn btn-green">▶ Play Sample</button>
+          <button id="stopSampleBtn" class="btn btn-red">■ Stop Sample</button>
         </div>
       </div>
 
@@ -373,15 +477,15 @@
         
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
           <div class="trim-slider-container" style="flex:1;">
-            <div class="control-group" style="flex:1;">
+            <div class="control-group" style="flex:1; min-width: 120px;">
               <label>Trim Start <span id="val-trimStart">0%</span></label>
               <input type="range" id="param-trimStart" min="0" max="1" value="0" step="0.005">
             </div>
-            <div class="control-group" style="flex:1;">
+            <div class="control-group" style="flex:1; min-width: 120px;">
               <label>Trim End <span id="val-trimEnd">100%</span></label>
               <input type="range" id="param-trimEnd" min="0" max="1" value="1" step="0.005">
             </div>
-            <div class="control-group" style="flex:1;">
+            <div class="control-group" style="flex:1; min-width: 120px;">
               <label>Split Cut Cursor <span id="val-cutPoint">50%</span></label>
               <input type="range" id="param-cutPoint" min="0" max="1" value="0.5" step="0.005">
             </div>
@@ -390,11 +494,11 @@
 
         <div class="slicing-panel">
           <span style="font-size:0.75rem; color:var(--muted-text); font-weight:bold;">SAMPLE SLICING OPTIONS:</span>
-          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split at Cursor</button>
+          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split at Cut Line</button>
           
-          <label style="font-size:0.75rem; color:var(--muted-text); margin-left:10px;">
+          <label style="font-size:0.75rem; color:var(--muted-text); margin-left:8px;">
             Equal Slices: 
-            <select id="sliceCountSelect">
+            <select id="sliceCountSelect" style="height: 38px;">
               <option value="2">2 Slices</option>
               <option value="4">4 Slices</option>
               <option value="8" selected>8 Slices</option>
@@ -426,11 +530,11 @@
 
       <div class="dropdown-group">
         <div class="select-wrapper">
-          <label>Select Sound from Bank (Ordered Tree)</label>
+          <label>Select Sound from Bank (Expandable Tree)</label>
           <select id="soundBankSelect"></select>
         </div>
         <div class="select-wrapper">
-          <label>Assign to Pad</label>
+          <label>Assign to Target Pad</label>
           <select id="targetPadSelect"></select>
         </div>
       </div>
@@ -462,12 +566,23 @@
   </div>
 
   <script>
+    // Prevent default double-tap zooming on iOS/iPad safari
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (event) => {
+      const now = (new Date()).getTime();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
+
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
     let factoryLibrary = [];
     let userLibrary = [];
     let storedJsonStore = {};
     let activeVoices = [];
+    let expandedFolders = new Set(); // Tracks expanded folders in library UI
 
     let padsState = Array.from({ length: 16 }, (_, i) => ({
       index: i,
@@ -613,9 +728,10 @@
         const json = JSON.parse(text);
         storedJsonStore[file.name] = json;
         refreshJsonDropdown();
+        jsonPatternSelect.value = file.name;
         applyJsonToSequencer(json);
       } catch (err) {
-        alert("Invalid JSON file format.");
+        alert("Invalid JSON pattern file.");
       }
     }
 
@@ -632,7 +748,8 @@
           try {
             const jsonText = await zip.file(jsonPath).async('string');
             const parsedJson = JSON.parse(jsonText);
-            storedJsonStore[`${zipName} / ${jsonPath}`] = parsedJson;
+            const storeKey = `${zipName} / ${jsonPath}`;
+            storedJsonStore[storeKey] = parsedJson;
             if (!primaryJsonData) primaryJsonData = parsedJson;
           } catch (e) {}
         }
@@ -680,7 +797,7 @@
         renderSequencerGrid();
         selectPad(0);
       } catch (err) {
-        alert("Could not load zip/bank file.");
+        alert("Could not load bank archive file.");
       }
     }
 
@@ -688,7 +805,8 @@
       if (!jsonData) return;
       if (jsonData.bpm) bpmInput.value = jsonData.bpm;
 
-      const matrixData = jsonData.sequence || jsonData.pattern || jsonData.matrix || jsonData.steps;
+      // Flexibly find sequence matrix from JSON schema
+      const matrixData = jsonData.sequence || jsonData.pattern || jsonData.matrix || jsonData.steps || jsonData.grid;
       if (Array.isArray(matrixData)) {
         for (let p = 0; p < Math.min(16, matrixData.length); p++) {
           if (Array.isArray(matrixData[p])) {
@@ -699,8 +817,21 @@
         }
       }
 
+      if (Array.isArray(jsonData.pads)) {
+        jsonData.pads.forEach((padMeta, i) => {
+          if (i < 16 && padMeta) {
+            if (padMeta.name) padsState[i].name = padMeta.name;
+            if (padMeta.volume !== undefined) padsState[i].volume = padMeta.volume;
+            if (padMeta.pitch !== undefined) padsState[i].pitch = padMeta.pitch;
+            if (padMeta.pan !== undefined) padsState[i].pan = padMeta.pan;
+            if (padMeta.cutoff !== undefined) padsState[i].cutoff = padMeta.cutoff;
+          }
+        });
+      }
+
       renderSequencerGrid();
       renderPads();
+      selectPad(selectedPadIndex);
     }
 
     function refreshJsonDropdown() {
@@ -720,7 +851,7 @@
           const arrayBuffer = await file.arrayBuffer();
           const buffer = await audioCtx.decodeAudioData(arrayBuffer);
           
-          let folder = "Uploaded Samples";
+          let folder = "Uploaded Files";
           if (file.webkitRelativePath) {
             const parts = file.webkitRelativePath.split('/');
             parts.pop();
@@ -781,7 +912,7 @@
         container.innerHTML = '';
         const folders = {};
         lib.forEach(sample => {
-          const folder = sample.folder || 'Root';
+          const folder = sample.folder || 'Root Folder';
           if (!folders[folder]) folders[folder] = [];
           folders[folder].push(sample);
         });
@@ -790,29 +921,45 @@
           const folderDiv = document.createElement('div');
           folderDiv.className = 'folder-group';
 
+          const isExpanded = expandedFolders.has(folderName);
+
           const headerDiv = document.createElement('div');
           headerDiv.className = 'folder-header';
-          headerDiv.innerHTML = `<span>📁 ${folderName}</span><span>(${folders[folderName].length})</span>`;
-          folderDiv.appendChild(headerDiv);
+          headerDiv.innerHTML = `
+            <span>${isExpanded ? '▼' : '►'} 📁 ${folderName}</span>
+            <span>(${folders[folderName].length} samples)</span>
+          `;
+          
+          const contentDiv = document.createElement('div');
+          contentDiv.className = `folder-content ${isExpanded ? 'expanded' : ''}`;
 
-          const listDiv = document.createElement('div');
-          listDiv.style.display = 'flex';
-          listDiv.style.flexDirection = 'column';
-          listDiv.style.gap = '3px';
-          listDiv.style.padding = '4px';
+          headerDiv.addEventListener('click', () => {
+            if (expandedFolders.has(folderName)) {
+              expandedFolders.delete(folderName);
+              contentDiv.classList.remove('expanded');
+              headerDiv.querySelector('span').innerText = `► 📁 ${folderName}`;
+            } else {
+              expandedFolders.add(folderName);
+              contentDiv.classList.add('expanded');
+              headerDiv.querySelector('span').innerText = `▼ 📁 ${folderName}`;
+            }
+          });
+
+          folderDiv.appendChild(headerDiv);
 
           folders[folderName].sort((a,b) => a.name.localeCompare(b.name)).forEach(sample => {
             const item = document.createElement('div');
             item.className = 'sample-item';
             item.innerHTML = `<span>${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
-            item.querySelector('button').addEventListener('click', async () => {
+            item.querySelector('button').addEventListener('click', async (e) => {
+              e.stopPropagation();
               await ensureAudioContextRunning();
               assignSampleToPad(sample, selectedPadIndex);
             });
-            listDiv.appendChild(item);
+            contentDiv.appendChild(item);
           });
 
-          folderDiv.appendChild(listDiv);
+          folderDiv.appendChild(contentDiv);
           container.appendChild(folderDiv);
         });
       };
