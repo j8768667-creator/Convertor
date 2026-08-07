@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Sampler & Sequencer Studio</title>
+  <title>Sample Sequencer</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -171,38 +171,63 @@
       outline: none;
     }
 
+    /* Library Panels & Scrollable Structure */
     .library-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     .lib-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 12px;
+      display: flex;
+      flex-direction: column;
     }
 
     .lib-card h3 {
       margin-top: 0;
       font-size: 0.95rem;
       border-bottom: 1px solid var(--border-color);
-      padding-bottom: 6px;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
     .sample-list {
-      max-height: 250px;
+      max-height: 280px;
       overflow-y: auto;
+      overflow-x: hidden;
       display: flex;
       flex-direction: column;
       gap: 6px;
-      margin-top: 8px;
+      padding-right: 4px;
+    }
+
+    /* Custom Scrollbar Styling */
+    .sample-list::-webkit-scrollbar,
+    .folder-contents::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sample-list::-webkit-scrollbar-track,
+    .folder-contents::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+    .sample-list::-webkit-scrollbar-thumb,
+    .folder-contents::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 3px;
+    }
+    .sample-list::-webkit-scrollbar-thumb:hover,
+    .folder-contents::-webkit-scrollbar-thumb:hover {
+      background: #4b5563;
     }
 
     .folder-group {
       border: 1px solid var(--border-color);
       border-radius: 4px;
       overflow: hidden;
-      margin-bottom: 4px;
+      flex-shrink: 0;
     }
 
     .folder-header {
@@ -210,7 +235,7 @@
       font-weight: bold;
       color: #60a5fa;
       cursor: pointer;
-      padding: 6px 8px;
+      padding: 7px 10px;
       background: rgba(59, 130, 246, 0.15);
       display: flex;
       justify-content: space-between;
@@ -221,11 +246,13 @@
     .folder-header:hover { background: rgba(59, 130, 246, 0.25); }
 
     .folder-contents {
-      padding: 4px;
+      padding: 6px;
       display: flex;
       flex-direction: column;
-      gap: 3px;
-      background-color: rgba(0, 0, 0, 0.2);
+      gap: 4px;
+      background-color: rgba(0, 0, 0, 0.25);
+      max-height: 180px;
+      overflow-y: auto;
     }
 
     .sample-item {
@@ -238,7 +265,14 @@
       font-size: 0.78rem;
     }
 
-    .sample-item button { padding: 3px 6px; font-size: 0.7rem; }
+    .sample-item span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-right: 8px;
+    }
+
+    .sample-item button { padding: 3px 6px; font-size: 0.7rem; flex-shrink: 0; }
 
     .pads-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-top: 8px; }
     .pad-btn {
@@ -301,14 +335,12 @@
 <body>
 
   <header>
-    <h1>Sampler, Sequencer & WAV Trimmer</h1>
+    <h1>Sample Sequencer</h1>
     <div class="header-actions">
-      <button id="importZipBtn" class="btn btn-secondary">Import ZIP Archive / Bank</button>
-      <button id="uploadSampleBtn" class="btn btn-secondary">Upload Audio / Video</button>
+      <button id="importMediaBtn" class="btn btn-secondary">Import WAV / Video / ZIP</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
 
-      <input type="file" id="zipInput" accept=".zip,.pkbank" multiple>
-      <input type="file" id="userSampleInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
+      <input type="file" id="mediaInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv,.zip" multiple>
     </div>
   </header>
 
@@ -404,7 +436,7 @@
     <div class="library-grid">
       <div class="lib-card">
         <h3>
-          Imported ZIP Archives & Kits
+          Imported ZIP Archives & Folders
           <span style="font-size:0.75rem; color:var(--muted-text);" id="factoryCount">0 samples</span>
         </h3>
         <div class="sample-list" id="factorySampleList"></div>
@@ -456,10 +488,8 @@
     const waveformCanvas = document.getElementById('waveformCanvas');
     const canvasCtx = waveformCanvas.getContext('2d');
 
-    const importZipBtn = document.getElementById('importZipBtn');
-    const zipInput = document.getElementById('zipInput');
-    const uploadSampleBtn = document.getElementById('uploadSampleBtn');
-    const userSampleInput = document.getElementById('userSampleInput');
+    const importMediaBtn = document.getElementById('importMediaBtn');
+    const mediaInput = document.getElementById('mediaInput');
     const padsGrid = document.getElementById('padsGrid');
     const targetPadSelect = document.getElementById('targetPadSelect');
     const soundBankSelect = document.getElementById('soundBankSelect');
@@ -514,21 +544,29 @@
       targetPadSelect.appendChild(opt);
     }
 
-    importZipBtn.addEventListener('click', () => zipInput.click());
-    uploadSampleBtn.addEventListener('click', () => userSampleInput.click());
+    importMediaBtn.addEventListener('click', () => mediaInput.click());
 
-    zipInput.addEventListener('change', async (e) => {
+    mediaInput.addEventListener('change', async (e) => {
       if (e.target.files.length) {
+        const zipFiles = [];
+        const mediaFiles = [];
+
         for (const file of e.target.files) {
-          await handleZipImport(file);
+          if (file.name.toLowerCase().endsWith('.zip')) {
+            zipFiles.push(file);
+          } else {
+            mediaFiles.push(file);
+          }
         }
-        e.target.value = '';
-      }
-    });
 
-    userSampleInput.addEventListener('change', async (e) => {
-      if (e.target.files.length) {
-        await handleUserSampleUpload(e.target.files);
+        for (const zipFile of zipFiles) {
+          await handleZipImport(zipFile);
+        }
+
+        if (mediaFiles.length > 0) {
+          await handleUserSampleUpload(mediaFiles);
+        }
+
         e.target.value = '';
       }
     });
@@ -544,12 +582,12 @@
       }
     });
 
-    // ZIP File Import and Internal Folder Structuring
+    // ZIP Archive Import
     async function handleZipImport(file) {
       await ensureAudioContextRunning();
       try {
         const zip = await JSZip.loadAsync(file);
-        const folderName = file.name.replace(/\.(zip|pkbank)$/i, '');
+        const folderName = file.name.replace(/\.zip$/i, '');
         
         const manifestFile = zip.file('manifest.json');
         let manifest = { pads: [] };
@@ -564,19 +602,19 @@
         }
 
         const validExts = ['.wav', '.mp3', '.flac', '.ogg', '.m4a', '.aac', '.mp4', '.mov', '.webm'];
-        const mediaFiles = Object.keys(zip.files).filter(name => {
+        const archiveFiles = Object.keys(zip.files).filter(name => {
           if (zip.files[name].dir) return false;
           const lower = name.toLowerCase();
           return validExts.some(ext => lower.endsWith(ext));
         });
 
-        if (mediaFiles.length === 0) {
+        if (archiveFiles.length === 0) {
           alert(`No compatible audio files found inside ${file.name}.`);
           return;
         }
 
-        for (let i = 0; i < mediaFiles.length; i++) {
-          const filePath = mediaFiles[i];
+        for (let i = 0; i < archiveFiles.length; i++) {
+          const filePath = archiveFiles[i];
           const fileData = await zip.file(filePath).async('arraybuffer');
           
           let buffer;
@@ -765,7 +803,7 @@
         grouped[folderName].forEach(sample => {
           const item = document.createElement('div');
           item.className = 'sample-item';
-          item.innerHTML = `<span>${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
+          item.innerHTML = `<span title="${sample.name}">${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
           item.querySelector('button').addEventListener('click', async () => {
             await ensureAudioContextRunning();
             assignSampleToPad(sample, selectedPadIndex);
