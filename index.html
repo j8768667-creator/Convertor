@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Sampler & Sequencer Studio</title>
+  <title>Pulsark Sampler & Sequencer Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -136,30 +136,17 @@
     .waveform-canvas-container {
       position: relative;
       width: 100%;
-      height: 110px;
+      height: 100px;
       background-color: #000;
       border-radius: 4px;
       overflow: hidden;
       margin-bottom: 8px;
-      cursor: crosshair;
     }
 
     canvas {
       width: 100%;
       height: 100%;
       display: block;
-    }
-
-    .slicer-controls-bar {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-      background-color: var(--panel-bg);
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border-color);
-      margin-bottom: 10px;
     }
 
     .trim-slider-container {
@@ -223,7 +210,7 @@
       outline: none;
     }
 
-    /* Folder & Library Panels */
+    /* Library Panels */
     .library-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -247,35 +234,8 @@
       align-items: center;
     }
 
-    .folder-group {
-      margin-bottom: 8px;
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    .folder-header {
-      background-color: #1e293b;
-      padding: 6px 10px;
-      font-size: 0.8rem;
-      font-weight: bold;
-      color: #38bdf8;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .folder-contents {
-      padding: 5px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      background-color: #0f172a;
-    }
-
     .sample-list {
-      max-height: 180px;
+      max-height: 150px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -288,7 +248,7 @@
       justify-content: space-between;
       align-items: center;
       background-color: var(--card-bg);
-      padding: 5px 8px;
+      padding: 6px 10px;
       border-radius: 4px;
       font-size: 0.8rem;
     }
@@ -299,17 +259,11 @@
     }
 
     /* Pads Grid */
-    .pads-header-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-
     .pads-grid {
       display: grid;
       grid-template-columns: repeat(8, 1fr);
       gap: 8px;
+      margin-top: 8px;
     }
 
     .pad-btn {
@@ -334,7 +288,7 @@
     .pad-index { font-size: 0.6rem; color: var(--muted-text); font-weight: bold; }
     .pad-name { font-weight: bold; font-size: 0.75rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* UI Buttons & Checkboxes */
+    /* UI Buttons */
     .btn {
       background-color: var(--btn-blue);
       color: white;
@@ -355,15 +309,6 @@
     .btn-secondary { background-color: #374151; }
     .btn-secondary:hover { background-color: #4b5563; }
 
-    .checkbox-label {
-      font-size: 0.8rem;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      cursor: pointer;
-      color: var(--muted-text);
-    }
-
     input[type="number"] {
       background: var(--card-bg);
       border: 1px solid var(--border-color);
@@ -380,13 +325,13 @@
 <body>
 
   <header>
-    <h1>Pulsark Sampler, Sequencer & Slicer Studio</h1>
+    <h1>Pulsark Sampler, Sequencer & WAV Trimmer</h1>
     <div class="header-actions">
       <button id="importPkbankBtn" class="btn btn-secondary">Import .pkbank</button>
       <button id="uploadSampleBtn" class="btn btn-secondary">Upload Audio / Video</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
 
-      <input type="file" id="pkbankInput" accept=".pkbank,.zip">
+      <input type="file" id="pkbankInput" accept=".pkbank,.pbank,.zip">
       <input type="file" id="userSampleInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
     </div>
   </header>
@@ -425,45 +370,26 @@
       </div>
 
       <div class="waveform-card">
-        <div class="waveform-canvas-container" id="canvasWrapper" title="In Manual mode, click waveform to add/remove slice markers">
+        <div class="waveform-canvas-container">
           <canvas id="waveformCanvas"></canvas>
         </div>
-
-        <div class="slicer-controls-bar">
-          <div class="select-wrapper" style="max-width:180px;">
-            <label>Slice Mode</label>
-            <select id="sliceModeSelect">
-              <option value="transient">Transient Detection</option>
-              <option value="silence">Silence Threshold</option>
-              <option value="beat">Beat / Equal Grid</option>
-              <option value="user">User / Manual Slices</option>
-            </select>
-          </div>
-
-          <div class="control-group" style="width:130px;">
-            <label>Slice Count <span id="val-sliceCount">8</span></label>
-            <input type="range" id="param-sliceCount" min="2" max="16" value="8" step="1">
-          </div>
-
-          <div class="control-group" style="width:130px;" id="sensGroup">
-            <label>Sensitivity <span id="val-sliceSens">50%</span></label>
-            <input type="range" id="param-sliceSens" min="5" max="95" value="50" step="1">
-          </div>
-
-          <button id="recalcSlicesBtn" class="btn btn-secondary">⚡ Detect Slices</button>
-          <button id="clearManualSlicesBtn" class="btn btn-secondary" style="display:none;">Clear Manual</button>
-          <button id="transferAllToPadsBtn" class="btn btn-green" style="margin-left:auto;">🎹 Transfer All Splits to Pads</button>
-        </div>
         
-        <div class="trim-slider-container">
-          <div class="control-group" style="flex:1;">
-            <label>Trim Start <span id="val-trimStart">0%</span></label>
-            <input type="range" id="param-trimStart" min="0" max="1" value="0" step="0.005">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div class="trim-slider-container" style="flex:1;">
+            <div class="control-group" style="flex:1;">
+              <label>Trim Start <span id="val-trimStart">0%</span></label>
+              <input type="range" id="param-trimStart" min="0" max="1" value="0" step="0.005">
+            </div>
+            <div class="control-group" style="flex:1;">
+              <label>Trim End <span id="val-trimEnd">100%</span></label>
+              <input type="range" id="param-trimEnd" min="0" max="1" value="1" step="0.005">
+            </div>
+            <div class="control-group" style="flex:1;">
+              <label>Split / Cut Point <span id="val-cutPoint">50%</span></label>
+              <input type="range" id="param-cutPoint" min="0" max="1" value="0.5" step="0.005">
+            </div>
           </div>
-          <div class="control-group" style="flex:1;">
-            <label>Trim End <span id="val-trimEnd">100%</span></label>
-            <input type="range" id="param-trimEnd" min="0" max="1" value="1" step="0.005">
-          </div>
+          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split Sample at Cut Point</button>
         </div>
       </div>
 
@@ -501,15 +427,15 @@
     <div class="library-grid">
       <div class="lib-card">
         <h3>
-          Captured Folders & Soundbanks
-          <span style="font-size:0.75rem; color:var(--muted-text);" id="factoryCount">0 folders</span>
+          Captured / Soundbank Library
+          <span style="font-size:0.75rem; color:var(--muted-text);" id="factoryCount">0 samples</span>
         </h3>
         <div class="sample-list" id="factorySampleList"></div>
       </div>
 
       <div class="lib-card">
         <h3>
-          User Uploaded & Split Slices
+          User Uploaded & Split Library
           <span style="font-size:0.75rem; color:var(--muted-text);" id="userCount">0 samples</span>
         </h3>
         <div class="sample-list" id="userSampleList"></div>
@@ -517,12 +443,7 @@
     </div>
 
     <div style="background-color: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px;">
-      <div class="pads-header-bar">
-        <h3 style="margin:0; font-size:0.95rem;">Drum Pads (1-16)</h3>
-        <label class="checkbox-label">
-          <input type="checkbox" id="previewPadsToggle" checked> 🔊 Preview Pads when selecting/assigning
-        </label>
-      </div>
+      <h3 style="margin:0 0 8px 0; font-size:0.95rem;">Drum Pads (1-16)</h3>
       <div class="pads-grid" id="padsGrid"></div>
     </div>
 
@@ -531,11 +452,12 @@
   <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
-    // Sample Libraries (factoryFolders structure: [{ folderName, samples: [{id, name, buffer}] }])
-    let factoryFolders = [];
+    // Sample Libraries & Dynamic Bank Store
+    let factoryLibrary = [];
     let userLibrary = [];
+    let bankJsonStore = {};
 
-    // Tracks all active audio nodes to instantly stop audio on pause or stop
+    // Active Audio Voice Tracking
     let activeVoices = [];
 
     // Pads State (16 Pads)
@@ -549,11 +471,10 @@
       cutoff: 20000,
       trimStart: 0,
       trimEnd: 1,
-      slicePoints: [] // Slice normalized ratios (e.g. [0, 0.25, 0.5, 0.75])
+      cutPoint: 0.5
     }));
 
     let selectedPadIndex = 0;
-    let manualSliceMarkers = []; // User defined points in manual mode
 
     // Compact Sequencer State
     const TOTAL_STEPS = 16;
@@ -565,7 +486,6 @@
     // Canvas Elements
     const waveformCanvas = document.getElementById('waveformCanvas');
     const canvasCtx = waveformCanvas.getContext('2d');
-    const canvasWrapper = document.getElementById('canvasWrapper');
 
     // DOM Elements
     const importPkbankBtn = document.getElementById('importPkbankBtn');
@@ -575,8 +495,6 @@
     const padsGrid = document.getElementById('padsGrid');
     const targetPadSelect = document.getElementById('targetPadSelect');
     const soundBankSelect = document.getElementById('soundBankSelect');
-    const previewPadsToggle = document.getElementById('previewPadsToggle');
-
     const factorySampleList = document.getElementById('factorySampleList');
     const userSampleList = document.getElementById('userSampleList');
     const factoryCount = document.getElementById('factoryCount');
@@ -586,16 +504,7 @@
     const bpmInput = document.getElementById('bpmInput');
     const playSeqBtn = document.getElementById('playSeqBtn');
     const exportSeqWavBtn = document.getElementById('exportSeqWavBtn');
-
-    const sliceModeSelect = document.getElementById('sliceModeSelect');
-    const sliceCountInput = document.getElementById('param-sliceCount');
-    const sliceSensInput = document.getElementById('param-sliceSens');
-    const valSliceCount = document.getElementById('val-sliceCount');
-    const valSliceSens = document.getElementById('val-sliceSens');
-    const recalcSlicesBtn = document.getElementById('recalcSlicesBtn');
-    const clearManualSlicesBtn = document.getElementById('clearManualSlicesBtn');
-    const transferAllToPadsBtn = document.getElementById('transferAllToPadsBtn');
-    const sensGroup = document.getElementById('sensGroup');
+    const splitSampleBtn = document.getElementById('splitSampleBtn');
 
     const currentPadNum = document.getElementById('currentPadNum');
     const currentSoundTitle = document.getElementById('currentSoundTitle');
@@ -608,7 +517,8 @@
       pan: document.getElementById('param-pan'),
       cutoff: document.getElementById('param-cutoff'),
       trimStart: document.getElementById('param-trimStart'),
-      trimEnd: document.getElementById('param-trimEnd')
+      trimEnd: document.getElementById('param-trimEnd'),
+      cutPoint: document.getElementById('param-cutPoint')
     };
 
     const labels = {
@@ -617,10 +527,11 @@
       pan: document.getElementById('val-pan'),
       cutoff: document.getElementById('val-cutoff'),
       trimStart: document.getElementById('val-trimStart'),
-      trimEnd: document.getElementById('val-trimEnd')
+      trimEnd: document.getElementById('val-trimEnd'),
+      cutPoint: document.getElementById('val-cutPoint')
     };
 
-    // Helper to ensure Web Audio Context is active on user click
+    // Helper to ensure Web Audio Context is active
     async function ensureAudioContextRunning() {
       if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
@@ -641,14 +552,14 @@
     pkbankInput.addEventListener('change', async (e) => {
       if (e.target.files.length) {
         await handlePkbankImport(e.target.files[0]);
-        e.target.value = ''; // Reset input
+        e.target.value = '';
       }
     });
 
     userSampleInput.addEventListener('change', async (e) => {
       if (e.target.files.length) {
         await handleUserSampleUpload(e.target.files);
-        e.target.value = ''; // Reset input
+        e.target.value = '';
       }
     });
 
@@ -658,60 +569,74 @@
 
     soundBankSelect.addEventListener('change', async (e) => {
       await ensureAudioContextRunning();
-      const allSamples = getAllLibrarySamples();
+      const allSamples = [...factoryLibrary, ...userLibrary];
       const selectedSample = allSamples.find(s => s.id === e.target.value);
       if (selectedSample) {
         assignSampleToPad(selectedSample, selectedPadIndex);
       }
     });
 
-    function getAllLibrarySamples() {
-      const samples = [];
-      factoryFolders.forEach(folder => samples.push(...folder.samples));
-      samples.push(...userLibrary);
-      return samples;
-    }
-
     async function handlePkbankImport(file) {
       await ensureAudioContextRunning();
       try {
         const zip = await JSZip.loadAsync(file);
-        const folderName = file.name.replace(/\.(pkbank|zip)$/i, '');
+        const baseBankName = file.name.replace(/\.[^/.]+$/, "");
         
-        let folderObj = factoryFolders.find(f => f.folderName === folderName);
-        if (!folderObj) {
-          folderObj = { folderName, samples: [] };
-          factoryFolders.push(folderObj);
-        }
+        // Find JSON configuration file
+        const allJsonFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.json'));
+        let targetJsonFile = zip.file('manifest.json') || 
+                             zip.file(`${baseBankName}.json`) || 
+                             (allJsonFiles.length > 0 ? zip.file(allJsonFiles[0]) : null);
 
-        const manifestFile = zip.file('manifest.json');
-        let manifest = { pads: [] };
+        let bankData = { pads: [], sequence: null, bpm: 120 };
 
-        if (manifestFile) {
+        if (targetJsonFile) {
           try {
-            const text = await manifestFile.async('string');
-            manifest = JSON.parse(text);
+            const jsonText = await targetJsonFile.async('string');
+            bankData = JSON.parse(jsonText);
+            // Store JSON config by file name
+            bankJsonStore[baseBankName] = bankData;
           } catch (err) {
-            console.warn("manifest.json syntax error; falling back to direct WAV extraction:", err);
+            console.warn("JSON syntax error in bank archive:", err);
           }
         }
 
-        const audioFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.wav'));
+        // Set BPM if available
+        if (bankData.bpm) {
+          bpmInput.value = bankData.bpm;
+        }
 
+        // Extract Pattern Sequence Matrix from JSON
+        const importedSeq = bankData.sequence || bankData.pattern || bankData.matrix || bankData.steps;
+        if (Array.isArray(importedSeq)) {
+          for (let p = 0; p < Math.min(16, importedSeq.length); p++) {
+            if (Array.isArray(importedSeq[p])) {
+              for (let s = 0; s < Math.min(TOTAL_STEPS, importedSeq[p].length); s++) {
+                sequenceMatrix[p][s] = Boolean(importedSeq[p][s]);
+              }
+            }
+          }
+        }
+
+        // Extract WAV samples
+        const audioFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.wav') || name.toLowerCase().endsWith('.mp3'));
+        
         for (let i = 0; i < audioFiles.length; i++) {
           const filePath = audioFiles[i];
           const fileData = await zip.file(filePath).async('arraybuffer');
-          const buffer = await audioCtx.decodeAudioData(fileData);
+          
+          // Slice ArrayBuffer to avoid detachment issues in Web Audio
+          const buffer = await audioCtx.decodeAudioData(fileData.slice(0));
 
-          const fileNameOnly = filePath.split('/').pop().replace(/\.wav$/i, '');
-          const padMeta = (manifest && Array.isArray(manifest.pads)) 
-            ? manifest.pads.find(p => p && p.audioFile === filePath) 
+          const fileNameOnly = filePath.split('/').pop().replace(/\.[^/.]+$/, '');
+          const padMeta = (bankData.pads && Array.isArray(bankData.pads)) 
+            ? bankData.pads.find(p => p && p.audioFile === filePath) 
             : null;
 
           const name = padMeta ? padMeta.name : fileNameOnly.toUpperCase().replace(/^[0-9]+_/, '');
 
-          if (!folderObj.samples.some(s => s.name === name)) {
-            folderObj.samples.push({ id: `fact_${Date.now()}_${Math.random()}`, name, buffer });
+          if (!factoryLibrary.some(s => s.name === name)) {
+            factoryLibrary.push({ id: `fact_${Date.now()}_${Math.random()}`, name, buffer });
           }
 
           const index = padMeta && padMeta.index !== undefined ? padMeta.index : i;
@@ -735,8 +660,8 @@
         renderSequencerGrid();
         selectPad(0);
       } catch (err) {
-        console.error("Failed to extract .pkbank file:", err);
-        alert("Failed to extract .pkbank file. Ensure it is a valid zip archive containing audio samples.");
+        console.error("Failed to extract audio bank file:", err);
+        alert("Failed to extract audio bank. Ensure it is a valid zip archive containing audio samples.");
       }
     }
 
@@ -745,19 +670,16 @@
       for (const file of files) {
         try {
           const arrayBuffer = await file.arrayBuffer();
-          const buffer = await audioCtx.decodeAudioData(arrayBuffer);
+          const buffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
           const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
           const name = (isVideo ? '[Vid] ' : '') + file.name.replace(/\.[^/.]+$/, "");
-
+          
           const newSample = {
             id: `usr_${Date.now()}_${Math.random()}`,
             name,
             buffer
           };
-
           userLibrary.push(newSample);
-
-          // Auto-assign uploaded sample to currently active pad
           assignSampleToPad(newSample, selectedPadIndex);
         } catch (err) {
           console.error("Could not decode audio from file:", file.name, err);
@@ -771,22 +693,21 @@
 
     function refreshSoundBankDropdown() {
       soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Sound Bank --</option>';
-
-      factoryFolders.forEach(folder => {
+      if (factoryLibrary.length > 0) {
         const factGroup = document.createElement('optgroup');
-        factGroup.label = `Folder: ${folder.folderName}`;
-        folder.samples.forEach(s => {
+        factGroup.label = 'Factory / Bank Library';
+        factoryLibrary.forEach(s => {
           const opt = document.createElement('option');
           opt.value = s.id;
           opt.innerText = s.name;
           factGroup.appendChild(opt);
         });
         soundBankSelect.appendChild(factGroup);
-      });
+      }
 
       if (userLibrary.length > 0) {
         const userGroup = document.createElement('optgroup');
-        userGroup.label = 'User Uploaded / Slices';
+        userGroup.label = 'User Uploaded / Split Library';
         userLibrary.forEach(s => {
           const opt = document.createElement('option');
           opt.value = s.id;
@@ -798,42 +719,22 @@
     }
 
     function renderLibraries() {
-      factoryCount.innerText = `${factoryFolders.length} folders`;
+      factoryCount.innerText = `${factoryLibrary.length} samples`;
       userCount.innerText = `${userLibrary.length} samples`;
 
       factorySampleList.innerHTML = '';
-      factoryFolders.forEach(folder => {
-        const folderDiv = document.createElement('div');
-        folderDiv.className = 'folder-group';
-
-        const header = document.createElement('div');
-        header.className = 'folder-header';
-        header.innerHTML = `<span>📁 ${folder.folderName}</span> <span>${folder.samples.length} files ▾</span>`;
-
-        const contents = document.createElement('div');
-        contents.className = 'folder-contents';
-
-        folder.samples.forEach(sample => {
-          const item = document.createElement('div');
-          item.className = 'sample-item';
-          item.innerHTML = `
-            <span>${sample.name}</span>
-            <button class="btn btn-secondary">Load to Pad</button>
-          `;
-          item.querySelector('button').addEventListener('click', async () => {
-            await ensureAudioContextRunning();
-            assignSampleToPad(sample, selectedPadIndex);
-          });
-          contents.appendChild(item);
+      factoryLibrary.forEach(sample => {
+        const item = document.createElement('div');
+        item.className = 'sample-item';
+        item.innerHTML = `
+          <span>${sample.name}</span>
+          <button class="btn btn-secondary">Load to Pad</button>
+        `;
+        item.querySelector('button').addEventListener('click', async () => {
+          await ensureAudioContextRunning();
+          assignSampleToPad(sample, selectedPadIndex);
         });
-
-        header.addEventListener('click', () => {
-          contents.style.display = contents.style.display === 'none' ? 'flex' : 'none';
-        });
-
-        folderDiv.appendChild(header);
-        folderDiv.appendChild(contents);
-        factorySampleList.appendChild(folderDiv);
+        factorySampleList.appendChild(item);
       });
 
       userSampleList.innerHTML = '';
@@ -855,17 +756,10 @@
     function assignSampleToPad(sample, padIdx) {
       padsState[padIdx].name = sample.name;
       padsState[padIdx].audioBuffer = sample.buffer;
-      padsState[padIdx].trimStart = 0;
-      padsState[padIdx].trimEnd = 1;
-      
-      selectPad(padIdx);
-      calculateCurrentSlices();
       renderPads();
       renderSequencerGrid();
-
-      if (previewPadsToggle.checked) {
-        triggerPadAudio(padIdx);
-      }
+      selectPad(padIdx);
+      triggerPadAudio(padIdx);
     }
 
     function renderPads() {
@@ -880,9 +774,7 @@
         btn.addEventListener('click', async () => {
           await ensureAudioContextRunning();
           selectPad(i);
-          if (previewPadsToggle.checked) {
-            triggerPadAudio(i);
-          }
+          triggerPadAudio(i);
         });
         padsGrid.appendChild(btn);
       });
@@ -890,10 +782,8 @@
 
     function renderSequencerGrid() {
       seqGrid.innerHTML = '';
-
       for (let padIdx = 0; padIdx < 16; padIdx++) {
         const pad = padsState[padIdx];
-        
         const label = document.createElement('div');
         label.className = 'seq-row-label';
         label.innerText = pad.name;
@@ -904,12 +794,10 @@
           stepCell.className = `seq-step ${sequenceMatrix[padIdx][stepIdx] ? 'active' : ''}`;
           stepCell.dataset.pad = padIdx;
           stepCell.dataset.step = stepIdx;
-
           stepCell.addEventListener('click', () => {
             sequenceMatrix[padIdx][stepIdx] = !sequenceMatrix[padIdx][stepIdx];
             stepCell.classList.toggle('active', sequenceMatrix[padIdx][stepIdx]);
           });
-
           seqGrid.appendChild(stepCell);
         }
       }
@@ -933,9 +821,10 @@
       inputs.cutoff.value = pad.cutoff;
       inputs.trimStart.value = pad.trimStart;
       inputs.trimEnd.value = pad.trimEnd;
+      inputs.cutPoint.value = pad.cutPoint;
 
       updateLabels();
-      calculateCurrentSlices();
+      drawWaveform();
     }
 
     function updateLabels() {
@@ -945,6 +834,7 @@
       labels.cutoff.innerText = `${inputs.cutoff.value} Hz`;
       labels.trimStart.innerText = `${Math.round(inputs.trimStart.value * 100)}%`;
       labels.trimEnd.innerText = `${Math.round(inputs.trimEnd.value * 100)}%`;
+      labels.cutPoint.innerText = `${Math.round(inputs.cutPoint.value * 100)}%`;
 
       const pad = padsState[selectedPadIndex];
       pad.volume = parseFloat(inputs.volume.value);
@@ -953,177 +843,19 @@
       pad.cutoff = parseFloat(inputs.cutoff.value);
       pad.trimStart = parseFloat(inputs.trimStart.value);
       pad.trimEnd = parseFloat(inputs.trimEnd.value);
+      pad.cutPoint = parseFloat(inputs.cutPoint.value);
 
       drawWaveform();
     }
 
     Object.values(inputs).forEach(input => input.addEventListener('input', updateLabels));
 
-    /* --- ADVANCED SLICING ENGINE --- */
-
-    sliceModeSelect.addEventListener('change', () => {
-      const mode = sliceModeSelect.value;
-      sensGroup.style.display = (mode === 'transient' || mode === 'silence') ? 'flex' : 'none';
-      clearManualSlicesBtn.style.display = mode === 'user' ? 'inline-block' : 'none';
-      calculateCurrentSlices();
-    });
-
-    sliceCountInput.addEventListener('input', () => {
-      valSliceCount.innerText = sliceCountInput.value;
-      calculateCurrentSlices();
-    });
-
-    sliceSensInput.addEventListener('input', () => {
-      valSliceSens.innerText = `${sliceSensInput.value}%`;
-      calculateCurrentSlices();
-    });
-
-    recalcSlicesBtn.addEventListener('click', calculateCurrentSlices);
-    clearManualSlicesBtn.addEventListener('click', () => {
-      manualSliceMarkers = [];
-      calculateCurrentSlices();
-    });
-
-    // Handle Manual Slice Placement on Canvas Click
-    canvasWrapper.addEventListener('click', (e) => {
-      if (sliceModeSelect.value !== 'user') return;
-      const pad = padsState[selectedPadIndex];
-      if (!pad || !pad.audioBuffer) return;
-
-      const rect = waveformCanvas.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const ratio = Math.max(0, Math.min(1, clickX / rect.width));
-
-      // Toggle or Add slice
-      const existingIdx = manualSliceMarkers.findIndex(m => Math.abs(m - ratio) < 0.02);
-      if (existingIdx >= 0) {
-        manualSliceMarkers.splice(existingIdx, 1);
-      } else {
-        manualSliceMarkers.push(ratio);
-        manualSliceMarkers.sort((a, b) => a - b);
-      }
-      calculateCurrentSlices();
-    });
-
-    function calculateCurrentSlices() {
-      const pad = padsState[selectedPadIndex];
-      if (!pad || !pad.audioBuffer) {
-        pad.slicePoints = [];
-        drawWaveform();
-        return;
-      }
-
-      const mode = sliceModeSelect.value;
-      const buffer = pad.audioBuffer;
-      const targetCount = parseInt(sliceCountInput.value);
-      const sens = parseInt(sliceSensInput.value) / 100;
-      let points = [0];
-
-      if (mode === 'beat') {
-        for (let i = 1; i < targetCount; i++) {
-          points.push(i / targetCount);
-        }
-      } else if (mode === 'transient') {
-        const channelData = buffer.getChannelData(0);
-        const windowSize = Math.floor(buffer.sampleRate * 0.01);
-        const threshold = 0.05 + (1 - sens) * 0.4;
-        let lastPoint = 0;
-
-        for (let i = windowSize; i < channelData.length - windowSize; i += windowSize) {
-          let energyPrev = 0, energyCurr = 0;
-          for (let j = 0; j < windowSize; j++) {
-            energyPrev += Math.abs(channelData[i - windowSize + j]);
-            energyCurr += Math.abs(channelData[i + j]);
-          }
-          if ((energyCurr / (energyPrev + 0.001)) > (1 + threshold * 3)) {
-            const pointRatio = i / channelData.length;
-            if (pointRatio - lastPoint > 0.04) {
-              points.push(pointRatio);
-              lastPoint = pointRatio;
-            }
-          }
-          if (points.length >= targetCount) break;
-        }
-      } else if (mode === 'silence') {
-        const channelData = buffer.getChannelData(0);
-        const windowSize = Math.floor(buffer.sampleRate * 0.015);
-        const silenceThreshold = 0.005 + (1 - sens) * 0.08;
-        let inSilence = true;
-
-        for (let i = 0; i < channelData.length; i += windowSize) {
-          let rms = 0;
-          for (let j = 0; j < windowSize && (i + j) < channelData.length; j++) {
-            rms += channelData[i + j] * channelData[i + j];
-          }
-          rms = Math.sqrt(rms / windowSize);
-
-          if (rms > silenceThreshold && inSilence) {
-            inSilence = false;
-            const pointRatio = i / channelData.length;
-            if (pointRatio > 0.02) points.push(pointRatio);
-          } else if (rms <= silenceThreshold) {
-            inSilence = true;
-          }
-          if (points.length >= targetCount) break;
-        }
-      } else if (mode === 'user') {
-        points = [0, ...manualSliceMarkers];
-      }
-
-      pad.slicePoints = [...new Set(points)].sort((a, b) => a - b);
-      drawWaveform();
-    }
-
-    // Transfer All Slices to Pads 1-16
-    transferAllToPadsBtn.addEventListener('click', async () => {
-      await ensureAudioContextRunning();
-      const pad = padsState[selectedPadIndex];
-      if (!pad || !pad.audioBuffer || pad.slicePoints.length === 0) return;
-
-      const buffer = pad.audioBuffer;
-      const points = [...pad.slicePoints, 1];
-
-      for (let i = 0; i < points.length - 1 && i < 16; i++) {
-        const startRatio = points[i];
-        const endRatio = points[i + 1];
-
-        const startFrame = Math.floor(startRatio * buffer.length);
-        const endFrame = Math.floor(endRatio * buffer.length);
-        const frameLength = endFrame - startFrame;
-
-        if (frameLength <= 0) continue;
-
-        const sliceBuffer = audioCtx.createBuffer(buffer.numberOfChannels, frameLength, buffer.sampleRate);
-        for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-          sliceBuffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(startFrame, endFrame));
-        }
-
-        const sliceName = `${pad.name}_slc${i + 1}`;
-        const newSample = { id: `slice_${Date.now()}_${i}`, name: sliceName, buffer: sliceBuffer };
-        
-        userLibrary.push(newSample);
-
-        padsState[i].name = sliceName;
-        padsState[i].audioBuffer = sliceBuffer;
-        padsState[i].trimStart = 0;
-        padsState[i].trimEnd = 1;
-      }
-
-      refreshSoundBankDropdown();
-      renderLibraries();
-      renderPads();
-      renderSequencerGrid();
-      alert(`Successfully mapped ${Math.min(points.length - 1, 16)} slices across Drum Pads 1-${Math.min(points.length - 1, 16)}!`);
-    });
-
-    // Render Canvas Waveform with Trimming and Slicer Overlays
     function drawWaveform() {
       const pad = padsState[selectedPadIndex];
       const width = waveformCanvas.width = waveformCanvas.clientWidth;
       const height = waveformCanvas.height = waveformCanvas.clientHeight;
 
       canvasCtx.clearRect(0, 0, width, height);
-
       if (!pad || !pad.audioBuffer) {
         canvasCtx.fillStyle = '#4b5563';
         canvasCtx.font = '12px sans-serif';
@@ -1135,7 +867,6 @@
       const step = Math.ceil(data.length / width);
       const amp = height / 2;
 
-      // Draw Base Waveform
       canvasCtx.beginPath();
       canvasCtx.strokeStyle = '#3b82f6';
       canvasCtx.lineWidth = 1;
@@ -1153,7 +884,6 @@
       }
       canvasCtx.stroke();
 
-      // Draw Trim Mask
       const trimStartPx = pad.trimStart * width;
       const trimEndPx = pad.trimEnd * width;
 
@@ -1161,7 +891,6 @@
       canvasCtx.fillRect(0, 0, trimStartPx, height);
       canvasCtx.fillRect(trimEndPx, 0, width - trimEndPx, height);
 
-      // Draw Trim Handles
       canvasCtx.strokeStyle = '#00e676';
       canvasCtx.lineWidth = 2;
       canvasCtx.beginPath();
@@ -1169,31 +898,51 @@
       canvasCtx.moveTo(trimEndPx, 0); canvasCtx.lineTo(trimEndPx, height);
       canvasCtx.stroke();
 
-      // Draw Slice Point Markers
-      if (pad.slicePoints && pad.slicePoints.length > 0) {
-        pad.slicePoints.forEach((pt, idx) => {
-          const x = pt * width;
-          canvasCtx.strokeStyle = '#f59e0b';
-          canvasCtx.lineWidth = 1.5;
-          canvasCtx.setLineDash([3, 3]);
-          canvasCtx.beginPath();
-          canvasCtx.moveTo(x, 0); canvasCtx.lineTo(x, height);
-          canvasCtx.stroke();
-          canvasCtx.setLineDash([]);
-
-          // Slice Marker Badge
-          canvasCtx.fillStyle = '#f59e0b';
-          canvasCtx.fillRect(x, 0, 14, 12);
-          canvasCtx.fillStyle = '#000';
-          canvasCtx.font = '9px monospace';
-          canvasCtx.fillText(`${idx + 1}`, x + 2, 9);
-        });
-      }
+      const cutPx = pad.cutPoint * width;
+      canvasCtx.strokeStyle = '#ef4444';
+      canvasCtx.lineWidth = 2;
+      canvasCtx.setLineDash([4, 4]);
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(cutPx, 0); canvasCtx.lineTo(cutPx, height);
+      canvasCtx.stroke();
+      canvasCtx.setLineDash([]);
     }
+
+    splitSampleBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
+      const pad = padsState[selectedPadIndex];
+      if (!pad || !pad.audioBuffer) return;
+
+      const buffer = pad.audioBuffer;
+      const cutIndex = Math.floor(buffer.length * pad.cutPoint);
+
+      if (cutIndex <= 0 || cutIndex >= buffer.length) return;
+
+      const part1Length = cutIndex;
+      const part1Buffer = audioCtx.createBuffer(buffer.numberOfChannels, part1Length, buffer.sampleRate);
+      for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        part1Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(0, part1Length));
+      }
+
+      const part2Length = buffer.length - cutIndex;
+      const part2Buffer = audioCtx.createBuffer(buffer.numberOfChannels, part2Length, buffer.sampleRate);
+      for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        part2Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(cutIndex));
+      }
+
+      const name1 = `${pad.name}_pt1`;
+      const name2 = `${pad.name}_pt2`;
+      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, buffer: part1Buffer });
+      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, buffer: part2Buffer });
+      assignSampleToPad({ name: name1, buffer: part1Buffer }, selectedPadIndex);
+
+      refreshSoundBankDropdown();
+      renderLibraries();
+    });
 
     auditionBtn.addEventListener('click', async () => {
       await ensureAudioContextRunning();
-      stopAllVoices(); // Stop any currently playing audio before starting new preview
+      stopAllVoices();
       triggerPadAudio(selectedPadIndex);
     });
 
@@ -1209,7 +958,6 @@
       source.buffer = pad.audioBuffer;
 
       source.playbackRate.value = Math.pow(2, pad.pitch / 12);
-
       const filter = targetCtx.createBiquadFilter();
       filter.type = 'lowpass';
       filter.frequency.value = pad.cutoff || 20000;
@@ -1228,10 +976,8 @@
       const duration = pad.audioBuffer.duration;
       const startTime = (pad.trimStart || 0) * duration;
       const playDuration = Math.max(0.01, ((pad.trimEnd || 1) - (pad.trimStart || 0)) * duration);
-
       source.start(targetTime, startTime, playDuration);
 
-      // Track active playing voices for instant stop capabilities
       if (targetCtx === audioCtx) {
         activeVoices.push(source);
         source.onended = () => {
@@ -1240,4 +986,156 @@
 
         const padEl = padsGrid.children[index];
         if (padEl) {
-          padEl.classList.add
+          padEl.classList.add('playing');
+          setTimeout(() => padEl.classList.remove('playing'), 120);
+        }
+      }
+    }
+
+    function stopAllVoices() {
+      activeVoices.forEach(source => {
+        try {
+          source.stop(0);
+          source.disconnect();
+        } catch (e) {}
+      });
+      activeVoices = [];
+    }
+
+    playSeqBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
+      if (isPlayingSeq) {
+        stopSequence();
+      } else {
+        startSequence();
+      }
+    });
+
+    function startSequence() {
+      isPlayingSeq = true;
+      playSeqBtn.innerText = 'Pause Sequence';
+      currentSeqStep = 0;
+      const runStep = () => {
+        document.querySelectorAll('.seq-step').forEach(cell => {
+          cell.classList.toggle('current-play', parseInt(cell.dataset.step) === currentSeqStep);
+        });
+        for (let padIdx = 0; padIdx < 16; padIdx++) {
+          if (sequenceMatrix[padIdx][currentSeqStep]) {
+            triggerPadAudio(padIdx);
+          }
+        }
+
+        currentSeqStep = (currentSeqStep + 1) % TOTAL_STEPS;
+      };
+
+      runStep();
+      const intervalMs = (60 / parseFloat(bpmInput.value) / 4) * 1000;
+      seqIntervalId = setInterval(runStep, intervalMs);
+    }
+
+    function stopSequence() {
+      isPlayingSeq = false;
+      playSeqBtn.innerText = 'Play Sequence';
+      clearInterval(seqIntervalId);
+      stopAllVoices();
+      document.querySelectorAll('.seq-step').forEach(cell => cell.classList.remove('current-play'));
+    }
+
+    async function renderSequenceToAudioBuffer() {
+      const bpm = parseFloat(bpmInput.value) || 120;
+      const secondsPerStep = 60 / bpm / 4;
+      const totalSequenceDuration = secondsPerStep * TOTAL_STEPS + 1.5;
+      const sampleRate = 48000;
+      const offlineCtx = new OfflineAudioContext(2, Math.ceil(sampleRate * totalSequenceDuration), sampleRate);
+
+      for (let stepIdx = 0; stepIdx < TOTAL_STEPS; stepIdx++) {
+        const stepTime = stepIdx * secondsPerStep;
+        for (let padIdx = 0; padIdx < 16; padIdx++) {
+          if (sequenceMatrix[padIdx][stepIdx]) {
+            triggerPadAudio(padIdx, offlineCtx, stepTime);
+          }
+        }
+      }
+
+      return await offlineCtx.startRendering();
+    }
+
+    function audioBufferToWavBlob(buffer) {
+      const numChannels = buffer.numberOfChannels;
+      const sampleRate = buffer.sampleRate;
+      const bitDepth = 16;
+      
+      let samples;
+      if (numChannels === 2) {
+        const left = buffer.getChannelData(0);
+        const right = buffer.getChannelData(1);
+        samples = new Float32Array(left.length + right.length);
+        for (let i = 0, j = 0; i < left.length; i++, j += 2) {
+          samples[j] = left[i];
+          samples[j + 1] = right[i];
+        }
+      } else {
+        samples = buffer.getChannelData(0);
+      }
+
+      const bytesPerSample = bitDepth / 8;
+      const blockAlign = numChannels * bytesPerSample;
+      const bufferLength = 44 + samples.length * bytesPerSample;
+      const arrayBuffer = new ArrayBuffer(bufferLength);
+      const view = new DataView(arrayBuffer);
+      const writeString = (offset, str) => {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + samples.length * bytesPerSample, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * blockAlign, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitDepth, true);
+      writeString(36, 'data');
+      view.setUint32(40, samples.length * bytesPerSample, true);
+
+      let offset = 44;
+      for (let i = 0; i < samples.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+
+      return new Blob([arrayBuffer], { type: 'audio/wav' });
+    }
+
+    function triggerDownload(blob, filename) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    }
+
+    exportSeqWavBtn.addEventListener('click', async () => {
+      exportSeqWavBtn.innerText = 'Rendering WAV...';
+      try {
+        const renderedBuffer = await renderSequenceToAudioBuffer();
+        const wavBlob = audioBufferToWavBlob(renderedBuffer);
+        triggerDownload(wavBlob, 'sequence_loop.wav');
+      } catch (err) {
+        console.error(err);
+      } finally {
+        exportSeqWavBtn.innerText = 'Export Sequence WAV';
+      }
+    });
+
+    // Initial Setup
+    renderPads();
+    renderSequencerGrid();
+    renderLibraries();
+    refreshSoundBankDropdown();
+    selectPad(0);
+  </script>
+</body>
+</html>
