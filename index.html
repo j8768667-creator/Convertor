@@ -534,5 +534,1022 @@
     masterCompressor.ratio.setValueAtTime(20, audioCtx.currentTime);
     masterCompressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
     masterCompressor.release.setValueAtTime(0.1, audioCtx.currentTime);
-    masterGain.gain.set
-
+    masterGain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+    masterGain.connect(masterCompressor);
+    masterCompressor.connect(audioCtx.destination);
+
+    // ======= State =======
+    let factoryLibrary = [];
+    let userLibrary = [];
+    let activeVoices = new Set();
+
+    let padsState = Array.from({ length: NUM_PADS }, (_, i) => ({
+      index: i,
+      name: `Pad ${i + 1}`,
+      audioBuffer: null,
+      volume: 100,
+      pitch: 0,
+      pan: 0,
+      cutoff: 20000,
+      trimStart: 0,
+      trimEnd: 1,
+      cutPoint: 0.5
+    }));
+
+    let selectedPadIndex = 0;
+    let sequenceMatrix = Array.from({ length: NUM_PADS }, () => Array(TOTAL_STEPS).fill(false));
+
+    // Scheduler
+    let isPlayingSeq = false;
+    let currentSeqStep = 0;
+    let nextNoteTime = 0.0;
+    let timerID = null;
+    const lookahead = 25.0; // ms
+    const scheduleAheadTime = 0.1; // seconds
+
+    // UI refs
+    const waveformCanvas = document.getElementById('waveformCanvas');
+    const canvasCtx = waveformCanvas.getContext('2d');
+
+    const importMediaBtn = document.getElementById('importMediaBtn');
+    const mediaInput = document.getElementById('mediaInput');
+    const padsGrid = document.getElementById('padsGrid');
+    const targetPadSelect = document.getElementById('targetPadSelect');
+    const soundBankSelect = document.getElementById('soundBankSelect');
+    const factorySampleList = document.getElementById('factorySampleList');
+    const userSampleList = document.getElementById('userSampleList');
+    const factoryCount = document.getElementById('factoryCount');
+    const userCount = document.getElementById('userCount');
+
+    const seqGrid = document.getElementById('seqGrid');
+    const bpmInput = document.getElementById('bpmInput');
+    const playSeqBtn = document.getElementById('playSeqBtn');
+    const exportSeqWavBtn = document.getElementById('exportSeqWavBtn');
+    const splitSampleBtn = document.getElementById('splitSampleBtn');
+    const slice4Btn = document.getElementById('slice4Btn');
+    const slice8Btn = document.getElementById('slice8Btn');
+    const clearPadBtn = document.getElementById('clearPadBtn');
+
+    const currentPadNum = document.getElementById('currentPadNum');
+    const currentSoundTitle = document.getElementById('currentSoundTitle');
+    const auditionBtn = document.getElementById('auditionBtn');
+    const stopSampleBtn = document.getElementById('stopSampleBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    const inputs = {
+      volume: document.getElementById('param-volume'),
+      pitch: document.getElementById('param-pitch'),
+      pan: document.getElementById('param-pan'),
+      cutoff: document.getElementById('param-cutoff'),
+      trimStart: document.getElementById('param-trimStart'),
+      trimEnd: document.getElementById('param-trimEnd'),
+      cutPoint: document.getElementById('param-cutPoint')
+    };
+
+    const labels = {
+      volume: document.getElementById('val-volume'),
+      pitch: document.getElementById('val-pitch'),
+      pan: document.getElementById('val-pan'),
+      cutoff: document.getElementById('val-cutoff'),
+      trimStart: document.getElementById('val-trimStart'),
+      trimEnd: document.getElementById('val-trimEnd'),
+      cutPoint: document.getElementById('val-cutPoint')
+    };
+
+    // ======= Accessibility & Toasts =======
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.setAttribute('role', 'status');
+      toast.textContent = message;
+      const container = document.getElementById('toastContainer');
+      container.appendChild(toast);
+
+      // Auto-remove and fade
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 250);
+      }, 3500);
+    }
+
+    function setLoading(isLoading) {
+      loadingOverlay.classList.toggle('active', isLoading);
+      loadingOverlay.setAttribute('aria-hidden', (!isLoading).toString());
+    }
+
+    async function ensureAudioContextRunning() {
+      if (audioCtx.state === 'suspended') {
+        try {
+          await audioCtx.resume();
+        } catch (e) {
+          console.warn("resume failed", e);
+        }
+      }
+    }
+
+    // ======= Canvas HiDPI handling & waveform drawing =======
+    function resizeWaveformCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = waveformCanvas.getBoundingClientRect();
+      const w = Math.max(1, Math.floor(rect.width * dpr));
+      const h = Math.max(1, Math.floor(rect.height * dpr));
+      if (waveformCanvas.width !== w || waveformCanvas.height !== h) {
+        waveformCanvas.width = w;
+        waveformCanvas.height = h;
+        canvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawWaveformForSelectedPad();
+      }
+    }
+    window.addEventListener('resize', debounce(resizeWaveformCanvas, 150));
+    resizeWaveformCanvas();
+
+    function drawWaveformForSelectedPad() {
+      const pad = padsState[selectedPadIndex];
+      drawWaveform(pad.audioBuffer, pad.trimStart, pad.trimEnd);
+    }
+
+    function drawWaveform(buffer, trimStart = 0, trimEnd = 1) {
+      const ctx = canvasCtx;
+      const dpr = window.devicePixelRatio || 1;
+      const rect = waveformCanvas.getBoundingClientRect();
+      const w = waveformCanvas.width / dpr;
+      const h = waveformCanvas.height / dpr;
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, w, h);
+
+      if (!buffer || !buffer.length) {
+        ctx.fillStyle = "#374151";
+        ctx.font = "12px system-ui, sans-serif";
+        ctx.fillText("No sample loaded", 10, 20);
+        return;
+      }
+
+      const raw = buffer.getChannelData(0);
+      const start = Math.floor(trimStart * raw.length);
+      const end = Math.floor(trimEnd * raw.length);
+      const length = Math.max(1, end - start);
+      const samplesPerPixel = Math.ceil(length / w);
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#60a5fa";
+      ctx.beginPath();
+
+      for (let x = 0; x < w; x++) {
+        const sx = start + Math.min(length - 1, Math.floor(x * samplesPerPixel));
+        let min = 1.0, max = -1.0;
+        for (let i = 0; i < samplesPerPixel && sx + i < end; i++) {
+          const v = raw[sx + i];
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        const y1 = (1 + min) * 0.5 * h;
+        const y2 = (1 + max) * 0.5 * h;
+        ctx.fillStyle = "#0ea5e9";
+        ctx.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+      }
+    }
+
+    // Small debounce util
+    function debounce(fn, wait = 100) {
+      let t;
+      return (...args) => {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(null, args), wait);
+      };
+    }
+
+    // ======= UI Rendering: Pads & Sequencer =======
+    function renderPads() {
+      padsGrid.innerHTML = '';
+      for (let i = 0; i < NUM_PADS; i++) {
+        const pad = padsState[i];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pad-btn' + (i === selectedPadIndex ? ' active' : '');
+        btn.setAttribute('data-pad', i);
+        btn.setAttribute('aria-pressed', (i === selectedPadIndex).toString());
+        btn.addEventListener('click', () => selectPad(i));
+        const idx = document.createElement('div');
+        idx.className = 'pad-index';
+        idx.textContent = String(i + 1).padStart(2, '0');
+        const name = document.createElement('div');
+        name.className = 'pad-name';
+        name.textContent = pad.name;
+        btn.appendChild(idx);
+        btn.appendChild(name);
+        padsGrid.appendChild(btn);
+      }
+    }
+
+    function renderSequencerGrid() {
+      seqGrid.innerHTML = '';
+      for (let r = 0; r < NUM_PADS; r++) {
+        const label = document.createElement('div');
+        label.className = 'seq-row-label';
+        label.textContent = padsState[r].name;
+        seqGrid.appendChild(label);
+
+        for (let s = 0; s < TOTAL_STEPS; s++) {
+          const step = document.createElement('button');
+          step.type = 'button';
+          step.className = 'seq-step' + (sequenceMatrix[r][s] ? ' active' : '');
+          step.setAttribute('data-row', r);
+          step.setAttribute('data-step', s);
+          step.setAttribute('role', 'button');
+          step.setAttribute('tabindex', '0');
+          step.setAttribute('aria-pressed', sequenceMatrix[r][s] ? 'true' : 'false');
+          step.addEventListener('click', () => toggleStep(r, s));
+          step.addEventListener('keydown', (ev) => {
+            if (ev.key === ' ' || ev.key === 'Enter') {
+              ev.preventDefault();
+              toggleStep(r, s);
+            }
+            // arrow keys navigation
+            if (ev.key === 'ArrowRight') {
+              const next = (s + 1) % TOTAL_STEPS;
+              const nextEl = seqGrid.querySelector(`.seq-step[data-row="${r}"][data-step="${next}"]`);
+              nextEl && nextEl.focus();
+            }
+            if (ev.key === 'ArrowLeft') {
+              const prev = (s - 1 + TOTAL_STEPS) % TOTAL_STEPS;
+              const prevEl = seqGrid.querySelector(`.seq-step[data-row="${r}"][data-step="${prev}"]`);
+              prevEl && prevEl.focus();
+            }
+          });
+          seqGrid.appendChild(step);
+        }
+      }
+    }
+
+    function toggleStep(row, step) {
+      sequenceMatrix[row][step] = !sequenceMatrix[row][step];
+      const btn = seqGrid.querySelector(`.seq-step[data-row="${row}"][data-step="${step}"]`);
+      if (btn) {
+        btn.classList.toggle('active', sequenceMatrix[row][step]);
+        btn.setAttribute('aria-pressed', sequenceMatrix[row][step] ? 'true' : 'false');
+      }
+    }
+
+    function selectPad(index) {
+      selectedPadIndex = index;
+      targetPadSelect.value = String(index);
+      currentPadNum.textContent = String(index + 1).padStart(2, '0');
+      currentSoundTitle.textContent = padsState[index].name || `Pad ${index + 1}`;
+      // sync UI controls values
+      inputs.trimStart.value = padsState[index].trimStart;
+      inputs.trimEnd.value = padsState[index].trimEnd;
+      inputs.cutPoint.value = padsState[index].cutPoint;
+      labels.trimStart.textContent = `${Math.round(padsState[index].trimStart * 100)}%`;
+      labels.trimEnd.textContent = `${Math.round(padsState[index].trimEnd * 100)}%`;
+      labels.cutPoint.textContent = `${Math.round(padsState[index].cutPoint * 100)}%`;
+      drawWaveformForSelectedPad();
+      renderPads();
+      refreshSoundBankDropdown(); // so drop-down shows current selection context
+    }
+
+    // ======= Sample Assignment & Libraries =======
+    function refreshSoundBankDropdown() {
+      soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Library --</option>';
+      const groupLibraryByFolder = (lib) => lib.reduce((acc, sample) => {
+        const folder = sample.folder || 'Uncategorized';
+        if (!acc[folder]) acc[folder] = [];
+        acc[folder].push(sample);
+        return acc;
+      }, {});
+
+      const factoryFolders = groupLibraryByFolder(factoryLibrary);
+      Object.keys(factoryFolders).forEach(folder => {
+        const group = document.createElement('optgroup');
+        group.label = `📁 ${folder}`;
+        factoryFolders[folder].forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.name;
+          group.appendChild(opt);
+        });
+        soundBankSelect.appendChild(group);
+      });
+
+      if (userLibrary.length > 0) {
+        const userFolders = groupLibraryByFolder(userLibrary);
+        Object.keys(userFolders).forEach(folder => {
+          const group = document.createElement('optgroup');
+          group.label = `📁 ${folder}`;
+          userFolders[folder].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            group.appendChild(opt);
+          });
+          soundBankSelect.appendChild(group);
+        });
+      }
+    }
+
+    function renderLibraries() {
+      factoryCount.textContent = `${factoryLibrary.length} samples`;
+      userCount.textContent = `${userLibrary.length} samples`;
+      renderFolderList(factoryLibrary, factorySampleList);
+      renderFolderList(userLibrary, userSampleList);
+    }
+
+    function renderFolderList(libraryList, targetContainer) {
+      targetContainer.innerHTML = '';
+      if (libraryList.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.style.cssText = 'font-size:0.75rem; color:var(--muted-text); padding:4px;';
+        emptyMsg.textContent = 'No samples imported';
+        targetContainer.appendChild(emptyMsg);
+        return;
+      }
+
+      const grouped = libraryList.reduce((acc, sample) => {
+        const folder = sample.folder || 'Uncategorized';
+        if (!acc[folder]) acc[folder] = [];
+        acc[folder].push(sample);
+        return acc;
+      }, {});
+
+      Object.keys(grouped).forEach(folderName => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'folder-group';
+
+        const headerEl = document.createElement('div');
+        headerEl.className = 'folder-header';
+
+        const folderTitleSpan = document.createElement('span');
+        folderTitleSpan.textContent = `▼ 📁 ${folderName}`;
+        const folderCountSpan = document.createElement('span');
+        folderCountSpan.textContent = `(${grouped[folderName].length})`;
+
+        headerEl.appendChild(folderTitleSpan);
+        headerEl.appendChild(folderCountSpan);
+
+        const contentsEl = document.createElement('div');
+        contentsEl.className = 'folder-contents';
+
+        headerEl.addEventListener('click', () => {
+          const isCollapsed = contentsEl.style.display === 'none';
+          contentsEl.style.display = isCollapsed ? 'flex' : 'none';
+          folderTitleSpan.textContent = (isCollapsed ? '▼' : '►') + ` 📁 ${folderName}`;
+        });
+
+        grouped[folderName].forEach(sample => {
+          const item = document.createElement('div');
+          item.className = 'sample-item';
+
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = sample.name;
+          nameSpan.title = sample.name;
+
+          const loadBtn = document.createElement('button');
+          loadBtn.className = 'btn btn-secondary';
+          loadBtn.type = 'button';
+          loadBtn.textContent = 'Load to Pad';
+          loadBtn.addEventListener('click', async () => {
+            await ensureAudioContextRunning();
+            assignSampleToPad(sample, selectedPadIndex);
+            showToast(`Assigned "${sample.name}" to Pad ${selectedPadIndex + 1}`, 'info');
+          });
+
+          item.appendChild(nameSpan);
+          item.appendChild(loadBtn);
+          contentsEl.appendChild(item);
+        });
+
+        groupEl.appendChild(headerEl);
+        groupEl.appendChild(contentsEl);
+        targetContainer.appendChild(groupEl);
+      });
+    }
+
+    function assignSampleToPad(sample, padIdx) {
+      padsState[padIdx].name = sample.name;
+      padsState[padIdx].audioBuffer = sample.buffer;
+      renderPads();
+      renderSequencerGrid();
+      selectPad(padIdx);
+    }
+
+    // ======= Playback: audition, stop, schedule sequencer =======
+    function playBufferImmediate(buffer, options = {}) {
+      if (!buffer) return null;
+      const src = audioCtx.createBufferSource();
+      src.buffer = buffer;
+
+      // Apply gain/pan if requested
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = (options.volume ?? 100) / 100;
+
+      const panner = audioCtx.createStereoPanner();
+      panner.pan.value = (options.pan ?? 0);
+
+      src.playbackRate.value = Math.pow(2, (options.pitch ?? 0) / 12);
+
+      src.connect(gainNode);
+      gainNode.connect(panner);
+      panner.connect(masterGain);
+
+      src.onended = () => {
+        activeVoices.delete(src);
+        try { src.disconnect(); } catch(e){}
+        try { gainNode.disconnect(); } catch(e){}
+        try { panner.disconnect(); } catch(e){}
+      };
+      activeVoices.add(src);
+      src.start();
+      return src;
+    }
+
+    function stopAllSamples() {
+      for (const src of Array.from(activeVoices)) {
+        try { src.stop(); } catch (e) {}
+        try { src.disconnect(); } catch (e) {}
+        activeVoices.delete(src);
+      }
+    }
+
+    auditionBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
+      const pad = padsState[selectedPadIndex];
+      if (!pad.audioBuffer) {
+        showToast('No sample loaded for this pad', 'error');
+        return;
+      }
+      playBufferImmediate(pad.audioBuffer, { volume: pad.volume, pitch: pad.pitch, pan: pad.pan });
+    });
+
+    stopSampleBtn.addEventListener('click', () => stopAllSamples());
+
+    // Sequencer scheduler: lookahead loop
+    function nextStepTime(bpm) {
+      const secondsPerBeat = 60.0 / bpm;
+      const secondsPerStep = secondsPerBeat / 4.0; // 16 steps = 4 beats
+      return secondsPerStep;
+    }
+
+    function scheduleStep(step, time) {
+      for (let r = 0; r < NUM_PADS; r++) {
+        if (sequenceMatrix[r][step]) {
+          const pad = padsState[r];
+          if (!pad.audioBuffer) continue;
+          // schedule playback at precise time
+          const src = audioCtx.createBufferSource();
+          src.buffer = pad.audioBuffer;
+          const gainNode = audioCtx.createGain();
+          gainNode.gain.value = (pad.volume ?? 100) / 100;
+          const panner = audioCtx.createStereoPanner();
+          panner.pan.value = pad.pan ?? 0;
+          src.playbackRate.value = Math.pow(2, (pad.pitch ?? 0) / 12);
+          src.connect(gainNode);
+          gainNode.connect(panner);
+          panner.connect(masterGain);
+
+          src.onended = () => {
+            activeVoices.delete(src);
+            try { src.disconnect(); } catch(e){}
+            try { gainNode.disconnect(); } catch(e){}
+            try { panner.disconnect(); } catch(e){}
+          };
+          activeVoices.add(src);
+          try {
+            src.start(time);
+          } catch (e) {
+            console.warn("Failed to schedule source", e);
+          }
+        }
+      }
+    }
+
+    function schedulerLoop() {
+      const bpm = parseFloat(bpmInput.value) || 120;
+      while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
+        scheduleStep(currentSeqStep, nextNoteTime);
+        nextNoteTime += nextStepTime(bpm);
+        currentSeqStep = (currentSeqStep + 1) % TOTAL_STEPS;
+      }
+      timerID = setTimeout(schedulerLoop, lookahead);
+    }
+
+    // Play/Pause handling with UI playhead update via rAF
+    let playheadRAF = null;
+    function startSequence() {
+      if (isPlayingSeq) return;
+      isPlayingSeq = true;
+      currentSeqStep = 0;
+      nextNoteTime = audioCtx.currentTime + 0.05;
+      schedulerLoop();
+      animatePlayhead();
+      playSeqBtn.textContent = 'Stop Sequence';
+      playSeqBtn.setAttribute('aria-pressed', 'true');
+    }
+
+    function stopSequence() {
+      if (!isPlayingSeq) return;
+      isPlayingSeq = false;
+      clearTimeout(timerID);
+      timerID = null;
+      stopAllSamples();
+      cancelAnimationFrame(playheadRAF);
+      clearPlayheadUI();
+      playSeqBtn.textContent = 'Play Sequence';
+      playSeqBtn.setAttribute('aria-pressed', 'false');
+    }
+
+    function animatePlayhead() {
+      // Visual only: compute current step based on audioCtx.currentTime and scheduler math
+      const bpm = parseFloat(bpmInput.value) || 120;
+      const stepDuration = nextStepTime(bpm); // seconds
+      const elapsed = audioCtx.currentTime - (nextNoteTime - (TOTAL_STEPS * stepDuration));
+      // Fallback: just highlight advancing steps in realtime by tracking time
+      updatePlayheadUI();
+      playheadRAF = requestAnimationFrame(animatePlayhead);
+    }
+
+    function updatePlayheadUI() {
+      // Find the closest scheduled step by time difference, but for simplicity highlight currentSeqStep - 1
+      // We'll mark the last scheduled step as playing
+      const playingIndex = (currentSeqStep === 0) ? TOTAL_STEPS - 1 : currentSeqStep - 1;
+      // Remove current-play class from all steps first
+      const allSteps = seqGrid.querySelectorAll('.seq-step');
+      allSteps.forEach(el => el.classList.remove('current-play'));
+      // Add to all rows for that column
+      for (let r = 0; r < NUM_PADS; r++) {
+        const el = seqGrid.querySelector(`.seq-step[data-row="${r}"][data-step="${playingIndex}"]`);
+        if (el) el.classList.add('current-play');
+      }
+    }
+
+    function clearPlayheadUI() {
+      const allSteps = seqGrid.querySelectorAll('.seq-step');
+      allSteps.forEach(el => el.classList.remove('current-play'));
+    }
+
+    playSeqBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
+      if (!isPlayingSeq) {
+        startSequence();
+      } else {
+        stopSequence();
+      }
+    });
+
+    // ======= Importing & ZIP handling =======
+    importMediaBtn.addEventListener('click', () => mediaInput.click());
+
+    mediaInput.addEventListener('change', async (e) => {
+      if (!e.target.files.length) return;
+      setLoading(true);
+
+      const zipFiles = [];
+      const mediaFiles = [];
+
+      for (const file of e.target.files) {
+        if (file.name.toLowerCase().endsWith('.zip')) {
+          zipFiles.push(file);
+        } else {
+          mediaFiles.push(file);
+        }
+      }
+
+      try {
+        for (const zipFile of zipFiles) {
+          await handleZipImport(zipFile);
+        }
+
+        if (mediaFiles.length > 0) {
+          await handleUserSampleUpload(mediaFiles);
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Error processing media upload", "error");
+      } finally {
+        setLoading(false);
+        e.target.value = '';
+      }
+    });
+
+    async function handleZipImport(file) {
+      await ensureAudioContextRunning();
+      try {
+        if (typeof JSZip === 'undefined') {
+          showToast("JSZip library not loaded yet. Please wait a moment.", "error");
+          return;
+        }
+        const zip = await JSZip.loadAsync(file);
+        const folderName = file.name.replace(/\.zip$/i, '');
+        const manifestFile = zip.file('manifest.json');
+        let manifest = { pads: [] };
+        if (manifestFile) {
+          try {
+            const text = await manifestFile.async('string');
+            manifest = JSON.parse(text);
+          } catch (err) {
+            console.warn("Manifest parse warning:", err);
+          }
+        }
+
+        const validExts = ['.wav', '.mp3', '.flac', '.ogg', '.m4a', '.aac', '.mp4', '.mov', '.webm'];
+        const archiveFiles = Object.keys(zip.files).filter(name => {
+          if (zip.files[name].dir) return false;
+          const lower = name.toLowerCase();
+          return validExts.some(ext => lower.endsWith(ext));
+        });
+
+        if (archiveFiles.length === 0) {
+          showToast(`No compatible audio files found inside ${file.name}.`, 'error');
+          return;
+        }
+
+        // process files sequentially to avoid CPU spike
+        for (let i = 0; i < archiveFiles.length; i++) {
+          const filePath = archiveFiles[i];
+          const fileData = await zip.file(filePath).async('arraybuffer');
+
+          let buffer;
+          try {
+            buffer = await audioCtx.decodeAudioData(fileData.slice(0));
+          } catch (e) {
+            console.warn(`Direct decode failed for ${filePath}, skipping...`, e);
+            continue;
+          }
+
+          const fileNameOnly = filePath.split('/').pop().replace(/\.[^/.]+$/, '');
+          const padMeta = (manifest && Array.isArray(manifest.pads))
+            ? manifest.pads.find(p => p && p.audioFile === filePath)
+            : null;
+
+          const sampleName = padMeta ? padMeta.name : fileNameOnly.toUpperCase().replace(/^[0-9]+_/, '');
+
+          const newSample = {
+            id: `zip_${Date.now()}_${Math.random()}`,
+            name: sampleName,
+            folder: folderName,
+            filePath,
+            buffer
+          };
+
+          factoryLibrary.push(newSample);
+
+          const index = padMeta && padMeta.index !== undefined ? padMeta.index : i;
+          if (index >= 0 && index < NUM_PADS) {
+            padsState[index].name = sampleName;
+            padsState[index].audioBuffer = buffer;
+            if (padMeta) {
+              padsState[index].volume = padMeta.volume ?? 100;
+              padsState[index].pitch = padMeta.pitch ?? 0;
+              padsState[index].pan = padMeta.pan ?? 0;
+              padsState[index].cutoff = padMeta.cutoff ?? 20000;
+              padsState[index].trimStart = padMeta.trimStart ?? 0;
+              padsState[index].trimEnd = padMeta.trimEnd ?? 1;
+            }
+          }
+        }
+
+        refreshSoundBankDropdown();
+        renderLibraries();
+        renderPads();
+        renderSequencerGrid();
+        selectPad(0);
+        showToast(`Imported archive ${file.name}`, 'info');
+      } catch (err) {
+        console.error("Failed to extract ZIP archive:", err);
+        showToast("Failed to extract ZIP file.", 'error');
+      }
+    }
+
+    async function handleUserSampleUpload(files) {
+      await ensureAudioContextRunning();
+      for (const file of files) {
+        try {
+          let buffer;
+          const arrayBuffer = await file.arrayBuffer();
+
+          try {
+            buffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+          } catch (e) {
+            // try extracting from video containers
+            buffer = await extractAudioFromMedia(file, arrayBuffer).catch(err => { throw err; });
+          }
+
+          const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
+          const name = (isVideo ? '[Vid] ' : '') + file.name.replace(/\.[^/.]+$/, "");
+          const newSample = { id: `usr_${Date.now()}_${Math.random()}`, name, folder: 'User Uploads', buffer };
+
+          userLibrary.push(newSample);
+          assignSampleToPad(newSample, selectedPadIndex);
+          showToast(`Loaded ${file.name}`, 'info');
+        } catch (err) {
+          console.error("Could not decode audio from file:", file.name, err);
+          showToast(`Could not extract audio from ${file.name}.`, 'error');
+        }
+      }
+
+      refreshSoundBankDropdown();
+      renderLibraries();
+    }
+
+    function extractAudioFromMedia(file, preloadedBuffer) {
+      return new Promise((resolve, reject) => {
+        // We attempt decode using OfflineAudioContext if metadata is available
+        const url = URL.createObjectURL(file);
+        const video = document.createElement('video');
+
+        let timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error("Media extraction timed out"));
+        }, 10000);
+
+        function cleanup() {
+          clearTimeout(timeout);
+          try { URL.revokeObjectURL(url); } catch (e) {}
+          try { video.removeAttribute('src'); video.load(); } catch (e) {}
+        }
+
+        video.src = url;
+        video.crossOrigin = 'anonymous';
+        video.onloadedmetadata = async () => {
+          try {
+            const offlineCtx = new OfflineAudioContext(2, Math.ceil(video.duration * 44100), 44100);
+            const decoded = await offlineCtx.decodeAudioData(preloadedBuffer.slice(0));
+            cleanup();
+            resolve(decoded);
+          } catch (err) {
+            cleanup();
+            reject(err);
+          }
+        };
+        video.onerror = (e) => {
+          cleanup();
+          reject(e);
+        };
+      });
+    }
+
+    // ======= Controls wiring & small UI behaviors =======
+    // Ensure targetPadSelect is built
+    for (let i = 0; i < NUM_PADS; i++) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.innerText = `Pad ${i + 1}`;
+      targetPadSelect.appendChild(opt);
+    }
+    targetPadSelect.addEventListener('change', (e) => selectPad(parseInt(e.target.value, 10)));
+
+    soundBankSelect.addEventListener('change', async (e) => {
+      await ensureAudioContextRunning();
+      const allSamples = [...factoryLibrary, ...userLibrary];
+      const selectedSample = allSamples.find(s => s.id === e.target.value);
+      if (selectedSample) {
+        assignSampleToPad(selectedSample, selectedPadIndex);
+      }
+    });
+
+    clearPadBtn.addEventListener('click', () => {
+      padsState[selectedPadIndex].audioBuffer = null;
+      padsState[selectedPadIndex].name = `Pad ${selectedPadIndex + 1}`;
+      renderPads();
+      renderSequencerGrid();
+      selectPad(selectedPadIndex);
+      showToast(`Cleared Pad ${selectedPadIndex + 1}`, 'info');
+    });
+
+    // Trim / param UI updates
+    inputs.trimStart.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value);
+      padsState[selectedPadIndex].trimStart = v;
+      labels.trimStart.textContent = `${Math.round(v * 100)}%`;
+      drawWaveformForSelectedPad();
+    });
+    inputs.trimEnd.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value);
+      padsState[selectedPadIndex].trimEnd = v;
+      labels.trimEnd.textContent = `${Math.round(v * 100)}%`;
+      drawWaveformForSelectedPad();
+    });
+    inputs.cutPoint.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value);
+      padsState[selectedPadIndex].cutPoint = v;
+      labels.cutPoint.textContent = `${Math.round(v * 100)}%`;
+    });
+
+    // Simple slicing helpers: cut into N slices and add to next pads
+    slice4Btn.addEventListener('click', () => sliceSelectedPadInto(4));
+    slice8Btn.addEventListener('click', () => sliceSelectedPadInto(8));
+
+    function sliceSelectedPadInto(count) {
+      const pad = padsState[selectedPadIndex];
+      if (!pad.audioBuffer) {
+        showToast("No sample to slice", "error");
+        return;
+      }
+      const buffer = pad.audioBuffer;
+      const total = buffer.length;
+      const channels = buffer.numberOfChannels;
+      const perSlice = Math.floor(total / count);
+      let targetPad = selectedPadIndex;
+      for (let i = 0; i < count; i++) {
+        const start = i * perSlice;
+        const end = (i === count - 1) ? total : (start + perSlice);
+        const sliceLen = end - start;
+        const offline = audioCtx.createBuffer(channels, sliceLen, buffer.sampleRate);
+        for (let ch = 0; ch < channels; ch++) {
+          const out = offline.getChannelData(ch);
+          const src = buffer.getChannelData(ch);
+          for (let j = 0; j < sliceLen; j++) out[j] = src[start + j];
+        }
+        const name = `${pad.name}-slice${i + 1}`;
+        const s = { id: `slice_${Date.now()}_${Math.random()}`, name, folder: 'Slices', buffer: offline };
+        userLibrary.push(s);
+        // assign progressively to pads (wrap)
+        const assignIdx = (targetPad + i) % NUM_PADS;
+        padsState[assignIdx].name = s.name;
+        padsState[assignIdx].audioBuffer = offline;
+      }
+      refreshSoundBankDropdown();
+      renderLibraries();
+      renderPads();
+      renderSequencerGrid();
+      showToast(`Sliced into ${count} slices`, 'info');
+    }
+
+    splitSampleBtn.addEventListener('click', () => {
+      // cut currently loaded pad at cutPoint and create two slices
+      const pad = padsState[selectedPadIndex];
+      if (!pad.audioBuffer) {
+        showToast("No sample loaded", "error");
+        return;
+      }
+      const buffer = pad.audioBuffer;
+      const cut = Math.floor(pad.cutPoint * buffer.length);
+      const channels = buffer.numberOfChannels;
+      const leftLen = cut;
+      const rightLen = buffer.length - cut;
+      if (leftLen <= 0 || rightLen <= 0) {
+        showToast("Cut point yields empty slice", "error");
+        return;
+      }
+      const left = audioCtx.createBuffer(channels, leftLen, buffer.sampleRate);
+      const right = audioCtx.createBuffer(channels, rightLen, buffer.sampleRate);
+      for (let ch = 0; ch < channels; ch++) {
+        const s = buffer.getChannelData(ch);
+        const l = left.getChannelData(ch);
+        const r = right.getChannelData(ch);
+        for (let i = 0; i < leftLen; i++) l[i] = s[i];
+        for (let i = 0; i < rightLen; i++) r[i] = s[cut + i];
+      }
+      const lName = `${pad.name}-L`;
+      const rName = `${pad.name}-R`;
+      const lSample = { id: `slice_${Date.now()}_${Math.random()}`, name: lName, folder: 'Slices', buffer: left };
+      const rSample = { id: `slice_${Date.now()}_${Math.random()}`, name: rName, folder: 'Slices', buffer: right };
+      userLibrary.push(lSample, rSample);
+      refreshSoundBankDropdown();
+      renderLibraries();
+      showToast('Split sample into two slices', 'info');
+    });
+
+    // ======= Export mixed sequence to WAV using OfflineAudioContext =======
+    exportSeqWavBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
+      // find sequence length in seconds: number of steps * stepTime
+      const bpm = parseFloat(bpmInput.value) || 120;
+      const stepSec = nextStepTime(bpm);
+      const totalSec = TOTAL_STEPS * stepSec;
+      setLoading(true);
+      try {
+        // Render into offline context with same sampleRate as audioCtx
+        const sampleRate = audioCtx.sampleRate || 44100;
+        const offline = new OfflineAudioContext(2, Math.ceil(totalSec * sampleRate), sampleRate);
+
+        // For each pad and each step scheduled, create an AudioBufferSource scheduled at the correct time
+        for (let r = 0; r < NUM_PADS; r++) {
+          for (let s = 0; s < TOTAL_STEPS; s++) {
+            if (!sequenceMatrix[r][s]) continue;
+            const pad = padsState[r];
+            if (!pad.audioBuffer) continue;
+            const src = offline.createBufferSource();
+            src.buffer = pad.audioBuffer;
+            const g = offline.createGain();
+            g.gain.value = (pad.volume ?? 100) / 100;
+            const p = offline.createStereoPanner();
+            p.pan.value = pad.pan ?? 0;
+            src.connect(g);
+            g.connect(p);
+            p.connect(offline.destination);
+            src.playbackRate.value = Math.pow(2, (pad.pitch ?? 0) / 12);
+            const when = s * stepSec;
+            src.start(when);
+          }
+        }
+
+        const rendered = await offline.startRendering();
+        // Convert rendered buffer to WAV
+        const wav = audioBufferToWav(rendered);
+        const blob = new Blob([wav], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'sequence.wav';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast('Exported sequence WAV', 'info');
+      } catch (err) {
+        console.error('Export failed', err);
+        showToast('Export failed', 'error');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    // WAV encoder - convert AudioBuffer to 16-bit PCM WAV
+    function audioBufferToWav(buffer, opt = {}) {
+      const numChannels = buffer.numberOfChannels;
+      const sampleRate = buffer.sampleRate;
+      const format = opt.float32 ? 3 : 1;
+      const bitDepth = opt.float32 ? 32 : 16;
+
+      let result;
+      if (numChannels === 2) {
+        result = interleave(buffer.getChannelData(0), buffer.getChannelData(1));
+      } else {
+        result = buffer.getChannelData(0);
+      }
+
+      function writeString(view, offset, string) {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      }
+
+      function interleave(inputL, inputR) {
+        const length = inputL.length + inputR.length;
+        const result = new Float32Array(length);
+        let index = 0, inputIndex = 0;
+        while (index < length) {
+          result[index++] = inputL[inputIndex];
+          result[index++] = inputR[inputIndex];
+          inputIndex++;
+        }
+        return result;
+      }
+
+      const bytesPerSample = bitDepth / 8;
+      const blockAlign = numChannels * bytesPerSample;
+      const bufferLength = result.length * bytesPerSample;
+      const wavBuffer = new ArrayBuffer(44 + bufferLength);
+      const view = new DataView(wavBuffer);
+
+      /* RIFF identifier */
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + bufferLength, true);
+      writeString(view, 8, 'WAVE');
+      /* fmt chunk */
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, format, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * blockAlign, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitDepth, true);
+      /* data chunk */
+      writeString(view, 36, 'data');
+      view.setUint32(40, bufferLength, true);
+
+      // Write PCM samples
+      let offset = 44;
+      if (format === 1) { // PCM 16-bit
+        for (let i = 0; i < result.length; i++, offset += 2) {
+          let s = Math.max(-1, Math.min(1, result[i]));
+          view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+        }
+      } else { // Float32
+        for (let i = 0; i < result.length; i++, offset += 4) {
+          view.setFloat32(offset, result[i], true);
+        }
+      }
+
+      return wavBuffer;
+    }
+
+    // ======= Startup render & initial wiring =======
+    function init() {
+      renderPads();
+      renderSequencerGrid();
+      renderLibraries();
+      selectPad(0);
+    }
+
+    // small helper: stop audio context on pagehide to reduce resource usage
+    window.addEventListener('pagehide', () => {
+      try { audioCtx.suspend(); } catch (e) {}
+    });
+
+    init();
+  </script>
+</body>
+</html>
