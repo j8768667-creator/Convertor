@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pulsark Sampler & Sequencer Studio</title>
+  <title>Sampler & Sequencer Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -40,7 +40,7 @@
     }
 
     h1 { margin: 0; font-size: 1.3rem; color: #fff; }
-    .header-actions { display: flex; gap: 8px; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .container {
       max-width: 1280px;
@@ -50,7 +50,6 @@
       gap: 15px;
     }
 
-    /* Compact Sequencer Section */
     .sequencer-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
@@ -68,10 +67,7 @@
     }
 
     .seq-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-
-    .seq-grid-container {
-      overflow-x: auto;
-    }
+    .seq-grid-container { overflow-x: auto; }
 
     .seq-grid {
       display: grid;
@@ -100,7 +96,6 @@
     .seq-step.active { background-color: var(--step-active); border-color: #00ff84; }
     .seq-step.current-play { box-shadow: 0 0 6px #fff; border-color: #fff; }
 
-    /* Sound Control & Waveform Panel */
     .sound-editor-card {
       background-color: var(--panel-bg);
       border: 1px solid var(--border-color);
@@ -115,18 +110,9 @@
       margin-bottom: 12px;
     }
 
-    .sound-title {
-      font-size: 1.1rem;
-      font-weight: bold;
-      color: #fff;
-    }
+    .sound-title { font-size: 1.1rem; font-weight: bold; color: #fff; }
+    .audio-playback-actions { display: flex; gap: 8px; }
 
-    .audio-playback-actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    /* WAV Waveform Editor Canvas & Trim Controls */
     .waveform-card {
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
@@ -145,16 +131,18 @@
       margin-bottom: 8px;
     }
 
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
+    canvas { width: 100%; height: 100%; display: block; }
 
-    .trim-slider-container {
+    .trim-slider-container { display: flex; gap: 15px; align-items: center; }
+
+    .slicing-panel {
       display: flex;
-      gap: 15px;
+      gap: 8px;
       align-items: center;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-color);
+      flex-wrap: wrap;
     }
 
     .controls-grid {
@@ -164,10 +152,7 @@
       margin-bottom: 15px;
     }
 
-    .control-group {
-      display: flex;
-      flex-direction: column;
-    }
+    .control-group { display: flex; flex-direction: column; }
 
     .control-group label {
       display: flex;
@@ -179,22 +164,11 @@
       font-weight: 600;
     }
 
-    .control-group input[type="range"] {
-      width: 100%;
-      accent-color: #3b82f6;
-    }
+    .control-group input[type="range"] { width: 100%; accent-color: #3b82f6; }
 
-    .dropdown-group {
-      display: flex;
-      gap: 12px;
-    }
+    .dropdown-group { display: flex; gap: 12px; }
 
-    .select-wrapper {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      flex: 1;
-    }
+    .select-wrapper { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 
     .select-wrapper label {
       font-size: 0.7rem;
@@ -212,7 +186,6 @@
       outline: none;
     }
 
-    /* Library Panels */
     .library-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -249,13 +222,12 @@
       font-size: 0.75rem;
       font-weight: bold;
       color: #60a5fa;
-      cursor: pointer;
       display: flex;
       justify-content: space-between;
     }
 
     .sample-list {
-      max-height: 180px;
+      max-height: 200px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -273,12 +245,8 @@
       font-size: 0.75rem;
     }
 
-    .sample-item button {
-      padding: 2px 6px;
-      font-size: 0.65rem;
-    }
+    .sample-item button { padding: 2px 6px; font-size: 0.65rem; }
 
-    /* Pads Grid */
     .pads-grid {
       display: grid;
       grid-template-columns: repeat(8, 1fr);
@@ -308,7 +276,6 @@
     .pad-index { font-size: 0.6rem; color: var(--muted-text); font-weight: bold; }
     .pad-name { font-weight: bold; font-size: 0.75rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* UI Buttons */
     .btn {
       background-color: var(--btn-blue);
       color: white;
@@ -347,12 +314,14 @@
   <header>
     <h1>Pulsark Sampler, Sequencer & WAV Trimmer</h1>
     <div class="header-actions">
-      <button id="importPkbankBtn" class="btn btn-secondary">Import .pbank / .zip / .json</button>
-      <button id="uploadSampleBtn" class="btn btn-secondary">Upload Audio / Video</button>
+      <button id="importPkbankBtn" class="btn btn-secondary">Import Bank (.pbank / .zip / .json)</button>
+      <button id="uploadFilesBtn" class="btn btn-secondary">Upload Audio / Video Files</button>
+      <button id="uploadFolderBtn" class="btn btn-secondary">Upload Folder Structure</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
 
       <input type="file" id="pkbankInput" accept=".pbank,.pkbank,.zip,.json,application/zip,application/json" multiple>
-      <input type="file" id="userSampleInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
+      <input type="file" id="userFilesInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
+      <input type="file" id="userFolderInput" webkitdirectory directory multiple>
     </div>
   </header>
 
@@ -368,7 +337,7 @@
               <option value="">-- Select JSON Pattern --</option>
             </select>
           </label>
-          <button id="applyJsonBtn" class="btn btn-secondary">Load JSON to Sequencer</button>
+          <button id="applyJsonBtn" class="btn btn-secondary">Load JSON Pattern</button>
           
           <label style="font-size:0.75rem; color: var(--muted-text); margin-left:10px;">
             BPM: <input type="number" id="bpmInput" value="120" min="40" max="240">
@@ -413,11 +382,26 @@
               <input type="range" id="param-trimEnd" min="0" max="1" value="1" step="0.005">
             </div>
             <div class="control-group" style="flex:1;">
-              <label>Split / Cut Point <span id="val-cutPoint">50%</span></label>
+              <label>Split Cut Cursor <span id="val-cutPoint">50%</span></label>
               <input type="range" id="param-cutPoint" min="0" max="1" value="0.5" step="0.005">
             </div>
           </div>
-          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split Sample at Cut Point</button>
+        </div>
+
+        <div class="slicing-panel">
+          <span style="font-size:0.75rem; color:var(--muted-text); font-weight:bold;">SAMPLE SLICING OPTIONS:</span>
+          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split at Cursor</button>
+          
+          <label style="font-size:0.75rem; color:var(--muted-text); margin-left:10px;">
+            Equal Slices: 
+            <select id="sliceCountSelect">
+              <option value="2">2 Slices</option>
+              <option value="4">4 Slices</option>
+              <option value="8" selected>8 Slices</option>
+              <option value="16">16 Slices</option>
+            </select>
+          </label>
+          <button id="autoSliceBtn" class="btn btn-secondary">Slice & Map to Pads</button>
         </div>
       </div>
 
@@ -442,7 +426,7 @@
 
       <div class="dropdown-group">
         <div class="select-wrapper">
-          <label>Select Sound from Bank</label>
+          <label>Select Sound from Bank (Ordered Tree)</label>
           <select id="soundBankSelect"></select>
         </div>
         <div class="select-wrapper">
@@ -480,14 +464,11 @@
   <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
-    // Sample Libraries & JSON Preset Stores
     let factoryLibrary = [];
     let userLibrary = [];
-    let storedJsonStore = {}; // Holds extracted/collected JSON files
-
+    let storedJsonStore = {};
     let activeVoices = [];
 
-    // Pads State (16 Pads)
     let padsState = Array.from({ length: 16 }, (_, i) => ({
       index: i,
       name: `Pad ${i + 1}`,
@@ -503,22 +484,22 @@
 
     let selectedPadIndex = 0;
 
-    // Sequencer State
     const TOTAL_STEPS = 16;
     let sequenceMatrix = Array.from({ length: 16 }, () => Array(TOTAL_STEPS).fill(false));
     let isPlayingSeq = false;
     let currentSeqStep = 0;
     let seqIntervalId = null;
 
-    // Canvas Elements
     const waveformCanvas = document.getElementById('waveformCanvas');
     const canvasCtx = waveformCanvas.getContext('2d');
 
-    // DOM Elements
     const importPkbankBtn = document.getElementById('importPkbankBtn');
     const pkbankInput = document.getElementById('pkbankInput');
-    const uploadSampleBtn = document.getElementById('uploadSampleBtn');
-    const userSampleInput = document.getElementById('userSampleInput');
+    const uploadFilesBtn = document.getElementById('uploadFilesBtn');
+    const userFilesInput = document.getElementById('userFilesInput');
+    const uploadFolderBtn = document.getElementById('uploadFolderBtn');
+    const userFolderInput = document.getElementById('userFolderInput');
+
     const padsGrid = document.getElementById('padsGrid');
     const targetPadSelect = document.getElementById('targetPadSelect');
     const soundBankSelect = document.getElementById('soundBankSelect');
@@ -534,7 +515,10 @@
     const bpmInput = document.getElementById('bpmInput');
     const playSeqBtn = document.getElementById('playSeqBtn');
     const exportSeqWavBtn = document.getElementById('exportSeqWavBtn');
+    
     const splitSampleBtn = document.getElementById('splitSampleBtn');
+    const autoSliceBtn = document.getElementById('autoSliceBtn');
+    const sliceCountSelect = document.getElementById('sliceCountSelect');
 
     const currentPadNum = document.getElementById('currentPadNum');
     const currentSoundTitle = document.getElementById('currentSoundTitle');
@@ -575,7 +559,8 @@
     }
 
     importPkbankBtn.addEventListener('click', () => pkbankInput.click());
-    uploadSampleBtn.addEventListener('click', () => userSampleInput.click());
+    uploadFilesBtn.addEventListener('click', () => userFilesInput.click());
+    uploadFolderBtn.addEventListener('click', () => userFolderInput.click());
 
     pkbankInput.addEventListener('change', async (e) => {
       if (e.target.files.length) {
@@ -590,7 +575,14 @@
       }
     });
 
-    userSampleInput.addEventListener('change', async (e) => {
+    userFilesInput.addEventListener('change', async (e) => {
+      if (e.target.files.length) {
+        await handleUserSampleUpload(e.target.files);
+        e.target.value = '';
+      }
+    });
+
+    userFolderInput.addEventListener('change', async (e) => {
       if (e.target.files.length) {
         await handleUserSampleUpload(e.target.files);
         e.target.value = '';
@@ -609,34 +601,30 @@
     applyJsonBtn.addEventListener('click', () => {
       const selectedKey = jsonPatternSelect.value;
       if (!selectedKey || !storedJsonStore[selectedKey]) {
-        alert("Please choose a stored JSON pattern from the dropdown list.");
+        alert("Select a stored JSON pattern first.");
         return;
       }
       applyJsonToSequencer(storedJsonStore[selectedKey]);
     });
 
-    // Handles standalone JSON file selection
     async function handleStandaloneJsonImport(file) {
       try {
         const text = await file.text();
         const json = JSON.parse(text);
-        const name = file.name;
-        storedJsonStore[name] = json;
+        storedJsonStore[file.name] = json;
         refreshJsonDropdown();
         applyJsonToSequencer(json);
       } catch (err) {
-        alert("Invalid JSON format file.");
+        alert("Invalid JSON file format.");
       }
     }
 
-    // Import .pbank / .zip files with folder preservation and JSON collection
     async function handlePkbankImport(file) {
       await ensureAudioContextRunning();
       try {
         const zip = await JSZip.loadAsync(file);
         const zipName = file.name.replace(/\.[^/.]+$/, "");
 
-        // 1. Collect all JSON manifest/pattern files into storedJsonStore
         const jsonFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.json'));
         let primaryJsonData = null;
 
@@ -644,17 +632,13 @@
           try {
             const jsonText = await zip.file(jsonPath).async('string');
             const parsedJson = JSON.parse(jsonText);
-            const storeKey = `${zipName} / ${jsonPath}`;
-            storedJsonStore[storeKey] = parsedJson;
-            if (!primaryJsonData || jsonPath.includes('manifest') || jsonPath.includes('pattern')) {
-              primaryJsonData = parsedJson;
-            }
-          } catch (e) { console.warn("Error parsing JSON:", jsonPath); }
+            storedJsonStore[`${zipName} / ${jsonPath}`] = parsedJson;
+            if (!primaryJsonData) primaryJsonData = parsedJson;
+          } catch (e) {}
         }
 
         refreshJsonDropdown();
 
-        // 2. Extract Audio Files preserving Folder Hierarchy
         const audioFiles = Object.keys(zip.files).filter(name => 
           /\.(wav|mp3|aac|flac|ogg)$/i.test(name) && !zip.files[name].dir
         );
@@ -664,10 +648,9 @@
           const fileData = await zip.file(filePath).async('arraybuffer');
           const buffer = await audioCtx.decodeAudioData(fileData.slice(0));
 
-          // Derive folder hierarchy path
           const pathSegments = filePath.split('/');
           const fileName = pathSegments.pop().replace(/\.[^/.]+$/, '');
-          const folderPath = pathSegments.length > 0 ? pathSegments.join('/') : zipName;
+          const folderPath = pathSegments.length > 0 ? `${zipName}/${pathSegments.join('/')}` : zipName;
 
           const padMeta = (primaryJsonData && Array.isArray(primaryJsonData.pads)) 
             ? primaryJsonData.pads.find(p => p && p.audioFile === filePath) 
@@ -686,21 +669,10 @@
           if (index >= 0 && index < 16) {
             padsState[index].name = name;
             padsState[index].audioBuffer = buffer;
-            if (padMeta) {
-              padsState[index].volume = padMeta.volume ?? 100;
-              padsState[index].pitch = padMeta.pitch ?? 0;
-              padsState[index].pan = padMeta.pan ?? 0;
-              padsState[index].cutoff = padMeta.cutoff ?? 20000;
-              padsState[index].trimStart = padMeta.trimStart ?? 0;
-              padsState[index].trimEnd = padMeta.trimEnd ?? 1;
-            }
           }
         }
 
-        // 3. Apply JSON pattern to sequencer if present
-        if (primaryJsonData) {
-          applyJsonToSequencer(primaryJsonData);
-        }
+        if (primaryJsonData) applyJsonToSequencer(primaryJsonData);
 
         refreshSoundBankDropdown();
         renderLibraries();
@@ -708,21 +680,14 @@
         renderSequencerGrid();
         selectPad(0);
       } catch (err) {
-        console.error("Failed to extract .pbank file:", err);
-        alert("Failed to extract zip/bank file. Make sure it contains valid audio files.");
+        alert("Could not load zip/bank file.");
       }
     }
 
-    // Restore JSON Pattern data directly into the step sequencer matrix & pads
     function applyJsonToSequencer(jsonData) {
       if (!jsonData) return;
+      if (jsonData.bpm) bpmInput.value = jsonData.bpm;
 
-      // Update BPM
-      if (jsonData.bpm) {
-        bpmInput.value = jsonData.bpm;
-      }
-
-      // Restore Sequencer Pattern Grid Matrix
       const matrixData = jsonData.sequence || jsonData.pattern || jsonData.matrix || jsonData.steps;
       if (Array.isArray(matrixData)) {
         for (let p = 0; p < Math.min(16, matrixData.length); p++) {
@@ -734,29 +699,13 @@
         }
       }
 
-      // Apply Pad Config Meta
-      if (Array.isArray(jsonData.pads)) {
-        jsonData.pads.forEach((padMeta, idx) => {
-          if (padMeta && idx < 16) {
-            if (padMeta.name) padsState[idx].name = padMeta.name;
-            if (padMeta.volume !== undefined) padsState[idx].volume = padMeta.volume;
-            if (padMeta.pitch !== undefined) padsState[idx].pitch = padMeta.pitch;
-            if (padMeta.pan !== undefined) padsState[idx].pan = padMeta.pan;
-            if (padMeta.cutoff !== undefined) padsState[idx].cutoff = padMeta.cutoff;
-            if (padMeta.trimStart !== undefined) padsState[idx].trimStart = padMeta.trimStart;
-            if (padMeta.trimEnd !== undefined) padsState[idx].trimEnd = padMeta.trimEnd;
-          }
-        });
-      }
-
       renderSequencerGrid();
       renderPads();
-      selectPad(selectedPadIndex);
     }
 
     function refreshJsonDropdown() {
       jsonPatternSelect.innerHTML = '<option value="">-- Select JSON Pattern --</option>';
-      Object.keys(storedJsonStore).forEach(key => {
+      Object.keys(storedJsonStore).sort().forEach(key => {
         const opt = document.createElement('option');
         opt.value = key;
         opt.innerText = key;
@@ -770,21 +719,26 @@
         try {
           const arrayBuffer = await file.arrayBuffer();
           const buffer = await audioCtx.decodeAudioData(arrayBuffer);
+          
+          let folder = "Uploaded Samples";
+          if (file.webkitRelativePath) {
+            const parts = file.webkitRelativePath.split('/');
+            parts.pop();
+            if (parts.length > 0) folder = parts.join('/');
+          }
+
           const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)$/i.test(file.name);
           const name = (isVideo ? '[Vid] ' : '') + file.name.replace(/\.[^/.]+$/, "");
-          
+
           const newSample = {
             id: `usr_${Date.now()}_${Math.random()}`,
             name,
-            folder: 'Uploaded Samples',
+            folder,
             buffer
           };
           userLibrary.push(newSample);
           assignSampleToPad(newSample, selectedPadIndex);
-        } catch (err) {
-          console.error("Could not decode audio from file:", file.name, err);
-          alert(`Could not extract audio track from ${file.name}. Ensure it contains valid audio.`);
-        }
+        } catch (err) {}
       }
 
       refreshSoundBankDropdown();
@@ -794,95 +748,77 @@
     function refreshSoundBankDropdown() {
       soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Sound Bank --</option>';
 
-      // Group factory library by folder in the select element
-      const folderGroups = {};
-      factoryLibrary.forEach(s => {
-        const folder = s.folder || 'Main Bank';
-        if (!folderGroups[folder]) folderGroups[folder] = [];
-        folderGroups[folder].push(s);
-      });
-
-      Object.keys(folderGroups).forEach(folderName => {
-        const group = document.createElement('optgroup');
-        group.label = `📁 ${folderName}`;
-        folderGroups[folderName].forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.id;
-          opt.innerText = s.name;
-          group.appendChild(opt);
+      const buildOrderedTree = (lib, labelPrefix) => {
+        const groups = {};
+        lib.forEach(s => {
+          const folder = s.folder || labelPrefix;
+          if (!groups[folder]) groups[folder] = [];
+          groups[folder].push(s);
         });
-        soundBankSelect.appendChild(group);
-      });
 
-      if (userLibrary.length > 0) {
-        const userGroup = document.createElement('optgroup');
-        userGroup.label = 'User Uploaded / Split Library';
-        userLibrary.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.id;
-          opt.innerText = s.name;
-          userGroup.appendChild(opt);
+        Object.keys(groups).sort().forEach(folderName => {
+          const group = document.createElement('optgroup');
+          group.label = `📁 ${folderName}`;
+          groups[folderName].sort((a,b) => a.name.localeCompare(b.name)).forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.innerText = s.name;
+            group.appendChild(opt);
+          });
+          soundBankSelect.appendChild(group);
         });
-        soundBankSelect.appendChild(userGroup);
-      }
+      };
+
+      buildOrderedTree(factoryLibrary, "Factory Library");
+      buildOrderedTree(userLibrary, "User Uploads");
     }
 
-    // Render folder-structured audio library view
     function renderLibraries() {
       factoryCount.innerText = `${factoryLibrary.length} samples`;
       userCount.innerText = `${userLibrary.length} samples`;
 
-      factorySampleList.innerHTML = '';
-      
-      // Group Factory library samples by folder
-      const folders = {};
-      factoryLibrary.forEach(sample => {
-        const folder = sample.folder || 'Root';
-        if (!folders[folder]) folders[folder] = [];
-        folders[folder].push(sample);
-      });
+      const renderList = (lib, container) => {
+        container.innerHTML = '';
+        const folders = {};
+        lib.forEach(sample => {
+          const folder = sample.folder || 'Root';
+          if (!folders[folder]) folders[folder] = [];
+          folders[folder].push(sample);
+        });
 
-      Object.keys(folders).forEach(folderName => {
-        const folderDiv = document.createElement('div');
-        folderDiv.className = 'folder-group';
+        Object.keys(folders).sort().forEach(folderName => {
+          const folderDiv = document.createElement('div');
+          folderDiv.className = 'folder-group';
 
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'folder-header';
-        headerDiv.innerHTML = `<span>📁 ${folderName}</span><span>(${folders[folderName].length})</span>`;
-        folderDiv.appendChild(headerDiv);
+          const headerDiv = document.createElement('div');
+          headerDiv.className = 'folder-header';
+          headerDiv.innerHTML = `<span>📁 ${folderName}</span><span>(${folders[folderName].length})</span>`;
+          folderDiv.appendChild(headerDiv);
 
-        const listDiv = document.createElement('div');
-        listDiv.style.display = 'flex';
-        listDiv.style.flexDirection = 'column';
-        listDiv.style.gap = '3px';
-        listDiv.style.padding = '4px';
+          const listDiv = document.createElement('div');
+          listDiv.style.display = 'flex';
+          listDiv.style.flexDirection = 'column';
+          listDiv.style.gap = '3px';
+          listDiv.style.padding = '4px';
 
-        folders[folderName].forEach(sample => {
-          const item = document.createElement('div');
-          item.className = 'sample-item';
-          item.innerHTML = `<span>${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
-          item.querySelector('button').addEventListener('click', async () => {
-            await ensureAudioContextRunning();
-            assignSampleToPad(sample, selectedPadIndex);
+          folders[folderName].sort((a,b) => a.name.localeCompare(b.name)).forEach(sample => {
+            const item = document.createElement('div');
+            item.className = 'sample-item';
+            item.innerHTML = `<span>${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
+            item.querySelector('button').addEventListener('click', async () => {
+              await ensureAudioContextRunning();
+              assignSampleToPad(sample, selectedPadIndex);
+            });
+            listDiv.appendChild(item);
           });
-          listDiv.appendChild(item);
-        });
 
-        folderDiv.appendChild(listDiv);
-        factorySampleList.appendChild(folderDiv);
-      });
-
-      userSampleList.innerHTML = '';
-      userLibrary.forEach(sample => {
-        const item = document.createElement('div');
-        item.className = 'sample-item';
-        item.innerHTML = `<span>${sample.name}</span><button class="btn btn-secondary">Load to Pad</button>`;
-        item.querySelector('button').addEventListener('click', async () => {
-          await ensureAudioContextRunning();
-          assignSampleToPad(sample, selectedPadIndex);
+          folderDiv.appendChild(listDiv);
+          container.appendChild(folderDiv);
         });
-        userSampleList.appendChild(item);
-      });
+      };
+
+      renderList(factoryLibrary, factorySampleList);
+      renderList(userLibrary, userSampleList);
     }
 
     function assignSampleToPad(sample, padIdx) {
@@ -1048,10 +984,9 @@
       const cutIndex = Math.floor(buffer.length * pad.cutPoint);
       if (cutIndex <= 0 || cutIndex >= buffer.length) return;
 
-      const part1Length = cutIndex;
-      const part1Buffer = audioCtx.createBuffer(buffer.numberOfChannels, part1Length, buffer.sampleRate);
+      const part1Buffer = audioCtx.createBuffer(buffer.numberOfChannels, cutIndex, buffer.sampleRate);
       for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-        part1Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(0, part1Length));
+        part1Buffer.getChannelData(ch).set(buffer.getChannelData(ch).subarray(0, cutIndex));
       }
 
       const part2Length = buffer.length - cutIndex;
@@ -1062,12 +997,44 @@
 
       const name1 = `${pad.name}_pt1`;
       const name2 = `${pad.name}_pt2`;
-      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, buffer: part1Buffer });
-      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, buffer: part2Buffer });
+      userLibrary.push({ id: `usr_${Date.now()}_1`, name: name1, folder: 'Slices', buffer: part1Buffer });
+      userLibrary.push({ id: `usr_${Date.now()}_2`, name: name2, folder: 'Slices', buffer: part2Buffer });
       assignSampleToPad({ name: name1, buffer: part1Buffer }, selectedPadIndex);
 
       refreshSoundBankDropdown();
       renderLibraries();
+    });
+
+    autoSliceBtn.addEventListener('click', async () => {
+      await ensureAudioContextRunning();
+      const pad = padsState[selectedPadIndex];
+      if (!pad || !pad.audioBuffer) return;
+
+      const numSlices = parseInt(sliceCountSelect.value);
+      const buffer = pad.audioBuffer;
+      const sliceLength = Math.floor(buffer.length / numSlices);
+
+      for (let i = 0; i < numSlices; i++) {
+        const start = i * sliceLength;
+        const sliceBuf = audioCtx.createBuffer(buffer.numberOfChannels, sliceLength, buffer.sampleRate);
+        for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+          sliceBuf.getChannelData(ch).set(buffer.getChannelData(ch).subarray(start, start + sliceLength));
+        }
+
+        const sliceName = `${pad.name}_slice_${i + 1}`;
+        userLibrary.push({ id: `usr_slice_${Date.now()}_${i}`, name: sliceName, folder: `${pad.name}_Slices`, buffer: sliceBuf });
+        
+        if (i < 16) {
+          padsState[i].name = sliceName;
+          padsState[i].audioBuffer = sliceBuf;
+        }
+      }
+
+      refreshSoundBankDropdown();
+      renderLibraries();
+      renderPads();
+      renderSequencerGrid();
+      selectPad(0);
     });
 
     auditionBtn.addEventListener('click', async () => {
@@ -1258,7 +1225,6 @@
       }
     });
 
-    // Initial Setup
     renderPads();
     renderSequencerGrid();
     renderLibraries();
