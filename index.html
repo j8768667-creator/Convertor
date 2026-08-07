@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pulsark Sampler & Sequencer Studio</title>
+  <title>Sampler, Sequencer & WAV Trimmer Studio</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     :root {
@@ -73,7 +73,7 @@
 
     .seq-grid {
       display: grid;
-      grid-template-columns: 100px repeat(16, minmax(20px, 1fr));
+      grid-template-columns: 110px repeat(16, minmax(20px, 1fr));
       gap: 2px;
       align-items: center;
     }
@@ -210,7 +210,7 @@
       outline: none;
     }
 
-    /* Library Panels & Collapsible Trees */
+    /* Library Panels & Expandable Trees */
     .library-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -235,7 +235,7 @@
     }
 
     .sample-list {
-      max-height: 220px;
+      max-height: 250px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -243,11 +243,12 @@
       margin-top: 8px;
     }
 
-    /* Folder Tree UI Components */
+    /* Expandable Folder Hierarchy UI */
     details.folder-tree {
-      margin-left: 6px;
-      border-left: 2px solid var(--border-color);
-      padding-left: 6px;
+      margin-left: 8px;
+      border-left: 1px solid var(--border-color);
+      padding-left: 8px;
+      margin-top: 4px;
     }
 
     details.folder-tree > summary {
@@ -346,10 +347,10 @@
 <body>
 
   <header>
-    <h1>Pulsark Sampler, Sequencer & WAV Trimmer</h1>
+    <h1>Sampler, Sequencer & WAV Trimmer Studio</h1>
     <div class="header-actions">
       <button id="importPkbankBtn" class="btn btn-secondary">Import .pkbank</button>
-      <button id="uploadFolderBtn" class="btn btn-secondary">Upload Folder</button>
+      <button id="uploadFolderBtn" class="btn btn-secondary">Upload Folder Hierarchy</button>
       <button id="uploadSampleBtn" class="btn btn-secondary">Upload Files</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
 
@@ -413,7 +414,11 @@
               <input type="range" id="param-cutPoint" min="0" max="1" value="0.5" step="0.005">
             </div>
           </div>
-          <button id="splitSampleBtn" class="btn btn-secondary">✂ Split Sample at Cut Point</button>
+          <div style="display:flex; gap:6px;">
+            <button id="splitSampleBtn" class="btn btn-secondary">✂ Cut at Point</button>
+            <button id="autoChop4Btn" class="btn btn-secondary">Slice to 4 Pads</button>
+            <button id="autoChop8Btn" class="btn btn-secondary">Slice to 8 Pads</button>
+          </div>
         </div>
       </div>
 
@@ -476,11 +481,11 @@
   <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
-    // Sample Libraries with path structure
+    // Sample Libraries with complete relative path tracking
     let factoryLibrary = [];
     let userLibrary = [];
 
-    // Active audio voices tracking
+    // Tracks all active playing voices for instant stopping
     let activeVoices = [];
 
     // Pads State (16 Pads)
@@ -499,7 +504,7 @@
 
     let selectedPadIndex = 0;
 
-    // Compact Sequencer State
+    // Sequencer State
     const TOTAL_STEPS = 16;
     let sequenceMatrix = Array.from({ length: 16 }, () => Array(TOTAL_STEPS).fill(false));
     let isPlayingSeq = false;
@@ -531,6 +536,8 @@
     const playSeqBtn = document.getElementById('playSeqBtn');
     const exportSeqWavBtn = document.getElementById('exportSeqWavBtn');
     const splitSampleBtn = document.getElementById('splitSampleBtn');
+    const autoChop4Btn = document.getElementById('autoChop4Btn');
+    const autoChop8Btn = document.getElementById('autoChop8Btn');
 
     const currentPadNum = document.getElementById('currentPadNum');
     const currentSoundTitle = document.getElementById('currentSoundTitle');
@@ -557,14 +564,14 @@
       cutPoint: document.getElementById('val-cutPoint')
     };
 
-    // Audio Context Helper
+    // Helper to ensure Web Audio Context is active on user click
     async function ensureAudioContextRunning() {
       if (audioCtx.state === 'suspended') {
         await audioCtx.resume();
       }
     }
 
-    // Initialize Pad Selector Dropdown
+    // Initialize Pad Options
     for (let i = 0; i < 16; i++) {
       const opt = document.createElement('option');
       opt.value = i;
@@ -610,7 +617,7 @@
       }
     });
 
-    // Clear Pattern Sequencer Grid
+    // Clear Pattern Grid
     clearSeqBtn.addEventListener('click', () => {
       sequenceMatrix = Array.from({ length: 16 }, () => Array(TOTAL_STEPS).fill(false));
       renderSequencerGrid();
@@ -622,7 +629,7 @@
       try {
         const zip = await JSZip.loadAsync(file);
         const manifestFile = zip.file('manifest.json');
-        let manifest = { pads: [] };
+        let manifest = null;
 
         if (manifestFile) {
           try {
@@ -633,7 +640,7 @@
           }
         }
 
-        // Parse Sequencer Steps from JSON manifest if available
+        // Extract JSON Pattern/Sequence Data into Step Sequencer
         if (manifest) {
           if (Array.isArray(manifest.sequenceMatrix)) {
             sequenceMatrix = manifest.sequenceMatrix;
@@ -648,7 +655,9 @@
           }
         }
 
-        const audioFiles = Object.keys(zip.files).filter(name => name.toLowerCase().endsWith('.wav') || name.toLowerCase().endsWith('.mp3'));
+        const audioFiles = Object.keys(zip.files).filter(name => 
+          name.toLowerCase().endsWith('.wav') || name.toLowerCase().endsWith('.mp3')
+        );
 
         for (let i = 0; i < audioFiles.length; i++) {
           const filePath = audioFiles[i];
@@ -692,11 +701,11 @@
         selectPad(0);
       } catch (err) {
         console.error("Failed to extract .pkbank file:", err);
-        alert("Failed to extract .pkbank file. Ensure it is a valid archive containing audio samples.");
+        alert("Failed to extract .pkbank file. Ensure it is a valid zip archive containing audio samples.");
       }
     }
 
-    // Handle Uploaded Audio Files & Folders
+    // Handle User Uploaded Files & Folders
     async function handleUserSampleUpload(files) {
       await ensureAudioContextRunning();
       for (const file of files) {
@@ -707,7 +716,7 @@
           const rawName = file.name.replace(/\.[^/.]+$/, "");
           const name = (isVideo ? '[Vid] ' : '') + rawName;
           
-          // Use relative path if uploading folder hierarchy
+          // Preserve relative directory path if available
           const relPath = file.webkitRelativePath || file.name;
 
           const newSample = {
@@ -718,7 +727,7 @@
           };
           userLibrary.push(newSample);
 
-          // Auto-assign uploaded sample to active pad
+          // Auto-assign sample to current pad
           assignSampleToPad(newSample, selectedPadIndex);
         } catch (err) {
           console.error("Could not decode audio from file:", file.name, err);
@@ -729,11 +738,11 @@
       renderLibraries();
     }
 
-    // Hierarchical Folder Tree Builder
+    // Build Nested Tree Object from Sample Path Strings
     function buildTreeFromPaths(sampleList) {
       const root = { name: 'root', folders: {}, files: [] };
       sampleList.forEach(sample => {
-        const parts = sample.path.split('/').filter(Boolean);
+        const parts = sample.path ? sample.path.split('/').filter(Boolean) : [sample.name];
         if (parts.length === 1) {
           root.files.push(sample);
         } else {
@@ -751,7 +760,7 @@
       return root;
     }
 
-    // Render Folder Tree UI recursively
+    // Recursively Render Collapsible Tree UI
     function renderFolderNode(node, container) {
       Object.keys(node.folders).forEach(folderName => {
         const folder = node.folders[folderName];
@@ -795,7 +804,7 @@
       renderFolderNode(userTree, userSampleList);
     }
 
-    // Populate Sound Bank Dropdown with Folder Groups
+    // Populate Sound Bank Selector Dropdown
     function refreshSoundBankDropdown() {
       soundBankSelect.innerHTML = '<option value="">-- Choose Sample from Sound Bank --</option>';
       
@@ -808,7 +817,7 @@
         library.forEach(s => {
           const opt = document.createElement('option');
           opt.value = s.id;
-          opt.innerText = `${s.path}`;
+          opt.innerText = s.path || s.name;
           soundBankSelect.appendChild(opt);
         });
       };
@@ -958,7 +967,7 @@
       canvasCtx.fillRect(0, 0, trimStartPx, height);
       canvasCtx.fillRect(trimEndPx, 0, width - trimEndPx, height);
 
-      // Draw Trim Handles
+      // Draw Trim Start/End Handles
       canvasCtx.strokeStyle = '#00e676';
       canvasCtx.lineWidth = 2;
       canvasCtx.beginPath();
@@ -966,7 +975,7 @@
       canvasCtx.moveTo(trimEndPx, 0); canvasCtx.lineTo(trimEndPx, height);
       canvasCtx.stroke();
 
-      // Draw Split Cut Line
+      // Draw Split Cut Point Line
       const cutPx = pad.cutPoint * width;
       canvasCtx.strokeStyle = '#ef4444';
       canvasCtx.lineWidth = 2;
@@ -977,7 +986,7 @@
       canvasCtx.setLineDash([]);
     }
 
-    // WAV Split Functionality
+    // WAV Slice Options
     splitSampleBtn.addEventListener('click', async () => {
       await ensureAudioContextRunning();
       const pad = padsState[selectedPadIndex];
@@ -1011,6 +1020,47 @@
       refreshSoundBankDropdown();
       renderLibraries();
     });
+
+    // Auto Slice into equal parts across pads
+    async function sliceSampleEqualParts(numSlices) {
+      await ensureAudioContextRunning();
+      const pad = padsState[selectedPadIndex];
+      if (!pad || !pad.audioBuffer) return;
+
+      const buffer = pad.audioBuffer;
+      const sliceLength = Math.floor(buffer.length / numSlices);
+
+      for (let i = 0; i < numSlices; i++) {
+        const sliceBuffer = audioCtx.createBuffer(buffer.numberOfChannels, sliceLength, buffer.sampleRate);
+        for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+          sliceBuffer.getChannelData(ch).set(
+            buffer.getChannelData(ch).subarray(i * sliceLength, (i + 1) * sliceLength)
+          );
+        }
+
+        const sliceName = `${pad.name}_slice_${i + 1}`;
+        const newSample = {
+          id: `usr_slice_${Date.now()}_${i}`,
+          name: sliceName,
+          path: sliceName,
+          buffer: sliceBuffer
+        };
+
+        userLibrary.push(newSample);
+
+        const targetPad = (selectedPadIndex + i) % 16;
+        padsState[targetPad].name = sliceName;
+        padsState[targetPad].audioBuffer = sliceBuffer;
+      }
+
+      refreshSoundBankDropdown();
+      renderLibraries();
+      renderPads();
+      renderSequencerGrid();
+    }
+
+    autoChop4Btn.addEventListener('click', () => sliceSampleEqualParts(4));
+    autoChop8Btn.addEventListener('click', () => sliceSampleEqualParts(8));
 
     auditionBtn.addEventListener('click', async () => {
       await ensureAudioContextRunning();
