@@ -346,7 +346,7 @@
       <button id="uploadSampleBtn" class="btn btn-secondary">Upload Audio / Video</button>
       <button id="exportSeqWavBtn" class="btn btn-green">Export Sequence WAV</button>
 
-      <input type="file" id="pkbankInput" accept=".pbank,.pkbank,.zip">
+      <input type="file" id="pkbankInput" accept=".pbank,.pkbank,.zip,application/zip,application/x-zip-compressed">
       <input type="file" id="userSampleInput" accept="audio/*,video/*,.wav,.mp3,.aac,.flac,.m4a,.ogg,.mp4,.mov,.webm,.avi,.mkv" multiple>
     </div>
   </header>
@@ -673,7 +673,6 @@
         for (let i = 0; i < audioFiles.length; i++) {
           const filePath = audioFiles[i];
           const fileData = await zip.file(filePath).async('arraybuffer');
-          // Copy buffer with slice(0) to prevent AudioBuffer detachment issues
           const buffer = await audioCtx.decodeAudioData(fileData.slice(0));
 
           const fileNameOnly = filePath.split('/').pop().replace(/\.[^/.]+$/, '');
@@ -939,10 +938,9 @@
           for (let j = 0; j < windowSize; j++) sum += data[i + j] * data[i + j];
           const energy = Math.sqrt(sum / windowSize);
 
-          // Onset peak jump threshold
           if (prevEnergy > 0 && (energy - prevEnergy) > (1.0 - sensitivity) * 0.25) {
             const normPoint = i / data.length;
-            if (normPoint - points[points.length - 1] > 0.03) { // min slice gap
+            if (normPoint - points[points.length - 1] > 0.03) {
               points.push(normPoint);
             }
           }
@@ -1038,7 +1036,7 @@
       canvasCtx.setLineDash([]);
     }
 
-    // Execute Slice & Store in Library
+    // Extract Slices
     function extractSlicesFromCurrentPad() {
       const pad = padsState[selectedPadIndex];
       if (!pad || !pad.audioBuffer || detectedSlicePoints.length < 2) return [];
